@@ -1,5 +1,6 @@
 import torch
-from kamui.engine import Value
+
+from kamui.core import Value
 
 
 def test_sanity_check():

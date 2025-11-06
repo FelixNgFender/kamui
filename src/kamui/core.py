@@ -1,53 +1,31 @@
 import enum
-import dataclasses
+import math
 from typing import Any, Callable, Self
 
 
 class Op(enum.StrEnum):
+    NOP = ""
     ADD = "+"
     SUB = "-"
     MUL = "*"
     POW = "**{exponent}"
     RELU = "ReLu"
-
-
-@dataclasses.dataclass
-class AddOperands:
-    op = Op.ADD
-    operands: tuple["Value", "Value"]
-
-
-@dataclasses.dataclass
-class MulOperands:
-    op = Op.MUL
-    operands: tuple["Value", "Value"]
-
-
-@dataclasses.dataclass
-class PowOperands:
-    op: str
-    operands: tuple["Value"]
-
-
-@dataclasses.dataclass
-class ReLuOperands:
-    op = Op.RELU
-    operands: tuple["Value"]
-
-
-type Operands = AddOperands | MulOperands | PowOperands | ReLuOperands
+    EXP = "exp"
+    LOG = "log"
 
 
 class Value:
     def __init__(
         self,
-        data: float,
-        _operands: Operands | None = None,
+        data: int | float,
+        _operands: tuple["Value"] | tuple["Value", "Value"] | None = None,
+        _op: Op | str = Op.NOP,
     ) -> None:
-        self.data: float = data
+        self.data: int | float = data
         self._operands: set[Value] | None = (
-            set(_operands.operands) if _operands is not None else None
+            set(_operands) if _operands is not None else None
         )
+        self._op: Op | str = _op
         self.grad: float = 0.0
         self.grad_fn: Callable[[], None] = lambda: None
 
@@ -78,7 +56,7 @@ class Value:
             case int() | float():
                 return self + Value(other)
             case Value():
-                out = Value(self.data + other.data, AddOperands((self, other)))
+                out = Value(self.data + other.data, (self, other), Op.ADD)
 
                 def _grad_fn():
                     self.grad += out.grad
@@ -94,7 +72,7 @@ class Value:
             case int() | float():
                 return self * Value(other)
             case Value():
-                out = Value(self.data * other.data, MulOperands((self, other)))
+                out = Value(self.data * other.data, (self, other), Op.MUL)
 
                 def _grad_fn():
                     self.grad += out.grad * other.data
@@ -110,7 +88,8 @@ class Value:
             case int() | float():
                 out = Value(
                     self.data**other,
-                    PowOperands(Op.POW.format(exponent=other), (self,)),
+                    (self,),
+                    Op.POW.format(exponent=other),
                 )
 
                 def _grad_fn():
@@ -122,10 +101,28 @@ class Value:
                 raise TypeError("only supporting int/float powers for now")
 
     def relu(self) -> "Value":
-        out = Value(0 if self.data < 0 else self.data, ReLuOperands((self,)))
+        out = Value(0 if self.data < 0 else self.data, (self,), Op.RELU)
 
         def _grad_fn():
             self.grad += out.grad * (out.data > 0)
+
+        out.grad_fn = _grad_fn
+        return out
+
+    def exp(self) -> "Value":
+        out = Value(math.exp(self.data), (self,), Op.EXP)
+
+        def _grad_fn():
+            self.grad += out.grad * out.data
+
+        out.grad_fn = _grad_fn
+        return out
+
+    def log(self) -> "Value":
+        out = Value(math.log(self.data), (self,), Op.LOG)
+
+        def _grad_fn():
+            self.grad += out.grad * (1 / self.data)
 
         out.grad_fn = _grad_fn
         return out

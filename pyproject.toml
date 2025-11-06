@@ -16,10 +16,23 @@ kamui = "kamui:main"
 
 [dependency-groups]
 dev = [
+  "datasets[image]>=4.4.1",
+  "graphviz>=0.21",
+  "ipykernel>=7.1.0",
+  "ipywidgets>=8.1.8",
+  "matplotlib>=3.10.7",
+  "pyright>=1.1.407",
   "pytest>=8.4.2",
   "pytest-watcher>=0.4.3",
   "ruff>=0.14.3",
+  "scikit-learn>=1.7.2",
   "torch>=2.9.0",
   "torchvision>=0.24.0",
-  "ty>=0.0.1a25",
 ]
+
+[tool.ruff.lint]
+# https://github.com/astral-sh/ruff-vscode/blob/main/README.md#configuring-vs-code
+extend-select = ["I"]
+
+[tool.pyright]
+typeCheckingMode = "standard"
