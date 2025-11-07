@@ -1,6 +1,6 @@
 import abc
 import random
-from typing import Iterable, Sequence
+from collections.abc import Iterable, Sequence
 
 import kamui as km
 
@@ -20,27 +20,28 @@ class Module(abc.ABC):
 
 
 class Neuron(Module):
-    def __init__(self, nin: int, nonlin: bool = True) -> None:
+    def __init__(self, nin: int, *, nonlin: bool = True) -> None:
         """Creates a new neuron with `nin` inputs."""
-        self.weights: list[km.Value] = [
-            km.Value(random.uniform(-1.0, 1.0)) for _ in range(nin)
-        ]
+        self.weights: list[km.Value] = [km.Value(random.uniform(-1.0, 1.0)) for _ in range(nin)]  # noqa: S311
         self.bias: km.Value = km.Value(0)
         self.nonlin: bool = nonlin
 
     def __call__(self, xs: Iterable[km.Value]) -> list[km.Value]:
-        act = sum((wi * xi for wi, xi in zip(self.weights, xs)), self.bias)
+        act = sum(
+            (wi * xi for wi, xi in zip(self.weights, xs, strict=False)),
+            self.bias,
+        )
         return [act.relu() if self.nonlin else act]
 
     def parameters(self) -> list[km.Value]:
         return [*self.weights, self.bias]
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{'ReLU' if self.nonlin else 'Linear'}Neuron({len(self.weights)})"
 
 
 class Layer(Module):
-    def __init__(self, nin: int, nout: int, **kwargs) -> None:
+    def __init__(self, nin: int, nout: int, **kwargs: bool) -> None:
         """Creates a new layer with `nout` neurons, each with `nin` inputs."""
         self.neurons: list[Neuron] = [Neuron(nin, **kwargs) for _ in range(nout)]
 
@@ -50,7 +51,7 @@ class Layer(Module):
     def parameters(self) -> list[km.Value]:
         return [p for n in self.neurons for p in n.parameters()]
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Layer of {len(self.neurons)} neurons [{', '.join(str(n) for n in self.neurons)}]"
 
 
@@ -63,16 +64,13 @@ class MLP(Module):
         Invariant: the number of neurons in layer n equals to the dimensionality
         of a neuron in layer n + 1
         """
-        sz: list[int] = [nin] + nouts
-        self.layers: list[Layer] = [
-            Layer(sz[i], sz[i + 1], nonlin=i != len(nouts) - 1)
-            for i in range(len(nouts))
-        ]
+        sz: list[int] = [nin, *nouts]
+        self.layers: list[Layer] = [Layer(sz[i], sz[i + 1], nonlin=i != len(nouts) - 1) for i in range(len(nouts))]
 
     def __call__(self, xs: Iterable[km.Value]) -> list[km.Value]:
         for layer in self.layers:
             xs = layer(xs)
-        return xs  # type: ignore
+        return list(xs)
 
     def parameters(self) -> list[km.Value]:
         return [p for layer in self.layers for p in layer.parameters()]
@@ -99,19 +97,22 @@ def cross_entropy_loss(pred: Sequence[km.Value], label: Sequence[km.Value]) -> k
     entropy loss function against the ground truth `label` probability distribution.
     """
     if len(pred) != len(label):
-        raise ValueError("pred and label must have the same length")
+        msg = "pred and label must have the same length"
+        raise ValueError(msg)
 
     pred_softmax = softmax(pred)
-    return -sum((yi * pi.log() for yi, pi in zip(label, pred_softmax)), km.Value(0))
+    return -sum(
+        (yi * pi.log() for yi, pi in zip(label, pred_softmax, strict=False)),
+        km.Value(0),
+    )
 
 
-def one_hot(input: km.Value, *, num_classes: int) -> list[km.Value]:
+def one_hot(value: km.Value, *, num_classes: int) -> list[km.Value]:
     """
     Converts a integer Value object into a one-hot encoded vector.
     """
-    if not isinstance(input.data, int) or input.data < 0 or input.data >= num_classes:
-        raise ValueError(
-            "Input value must be an integer in the range [0, num_classes - 1]"
-        )
+    if not isinstance(value.data, int) or value.data < 0 or value.data >= num_classes:
+        msg = "Input value must be an integer in the range [0, num_classes - 1]"
+        raise ValueError(msg)
 
-    return [km.Value(1) if i == input.data else km.Value(0) for i in range(num_classes)]
+    return [km.Value(1) if i == value.data else km.Value(0) for i in range(num_classes)]

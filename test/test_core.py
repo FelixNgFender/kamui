@@ -3,7 +3,7 @@ import torch
 from kamui.core import Value
 
 
-def test_sanity_check():
+def test_sanity_check() -> None:
     x = Value(-4.0)
     z = 2 * x + 2 + x
     q = z.relu() + z * x
@@ -28,7 +28,7 @@ def test_sanity_check():
     assert xmg.grad == xpt.grad.item()
 
 
-def test_more_ops():
+def test_more_ops() -> None:
     a = Value(-4.0)
     b = Value(2.0)
     c = a + b
