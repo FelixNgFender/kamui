@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 authors = [{ name = "felixngfender", email = "ngthinh302@gmail.com" }]
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = []
 
 [build-system]
@@ -19,13 +19,13 @@ dev = [
   "ipywidgets>=8.1.8",
   "matplotlib>=3.10.7",
   "prek>=0.2.13",
-  "pyright>=1.1.407",
   "pytest>=8.4.2",
   "pytest-watcher>=0.4.3",
   "ruff>=0.14.3",
   "scikit-learn>=1.7.2",
-  "torch>=2.9.0",
-  "torchvision>=0.24.0",
+  "torch>=2.9.1",
+  "torchvision>=0.24.1",
+  "ty>=0.0.9",
 ]
 
 [tool.ruff]
@@ -42,6 +42,7 @@ lint.ignore = [
 lint.extend-select = ["I"]
 lint.per-file-ignores = { "test/*.py" = ["S101"] }
 
-[tool.basedpyright]
-typeCheckingMode = "standard"
-exclude = ["examples"]
+[tool.ty.src]
+exclude = [
+    "examples"
+]
