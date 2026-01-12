@@ -9,3 +9,7 @@ wheels/
 # Virtual environments
 .venv
 *env
+
+# PyTorch datasets
+examples/pytorch/data/
+*.pth
