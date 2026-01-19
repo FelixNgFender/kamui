@@ -1,0 +1,25 @@
+- visualize activations and gradients in mlp_pytorch.ipynb
+  - https://www.youtube.com/watch?v=syLFCVYua6Q
+  - https://docs.pytorch.org/tutorials/intermediate/visualizing_gradients_tutorial.html
+  - second half of https://www.youtube.com/watch?v=P6sfmUTpUmc&list=PLAqhIrjkxbuWI23v9cThsA9GvCAUhRvKZ&index=5
+- do backprop ninja exercises in mlp_backprop_ninja.ipynb
+- karpathy reads
+  - https://karpathy.github.io/2015/10/25/selfie/
+  - https://karpathy.github.io/2019/04/25/recipe/
+- impl repro 1989
+  - https://karpathy.github.io/2022/03/14/lecun1989/
+- impl rnn
+  - [NLP from scratch PyTorch tutorial](https://docs.pytorch.org/tutorials/intermediate/nlp_from_scratch_index.html)
+  - https://karpathy.github.io/2015/05/21/rnn-effectiveness/ 
+  - https://colah.github.io/posts/2015-08-Understanding-LSTMs/
+- diffusion 
+  - https://poloclub.github.io/diffusion-explainer/
+- transformer
+  - https://poloclub.github.io/transformer-explainer/
+- gan
+  - https://poloclub.github.io/ganlab/
+- RL stuff
+  - https://www.youtube.com/watch?v=cQfOQcpYRzE
+  - https://karpathy.github.io/2016/05/31/rl/
+-finish pytorch intro doc blogs
+  - https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html
