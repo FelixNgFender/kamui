@@ -21,5 +21,8 @@
 - RL stuff
   - https://www.youtube.com/watch?v=cQfOQcpYRzE
   - https://karpathy.github.io/2016/05/31/rl/
--finish pytorch intro doc blogs
+- finish pytorch intro doc blogs
   - https://docs.pytorch.org/tutorials/intermediate/pinmem_nonblock.html
+- papers
+  - a neural probabislitic bengio
+  - wavenet
