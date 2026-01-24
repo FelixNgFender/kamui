@@ -44,6 +44,4 @@ lint.extend-select = ["I"]
 lint.per-file-ignores = { "test/*.py" = ["S101"] }
 
 [tool.ty.src]
-exclude = [
-    "examples"
-]
+exclude = ["examples/micrograd/mnist.ipynb"]
