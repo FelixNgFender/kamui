@@ -2,6 +2,12 @@
 
 ## char-level bigram
 
+```txt
+CharBigram(
+  (embedding): Embedding(65, 65)
+)
+```
+
 simple (vocab_size, vocab_size) embedding matrix
 
 ### bigram loss curve
@@ -36,7 +42,15 @@ Yofth ll g's sed liset; i
 
 ## word-level mlp
 
-word-level mlp: to avoid OOM, i modified the embedding table to use (vocab_size=25670, embbedding_dim=24) and a final linear layer to project to vocab_size=25670.
+```txt
+WordMLP(
+  (embedding): Embedding(25670, 24)
+  (proj): Linear(in_features=24, out_features=25670, bias=True)
+)
+```
+
+word-level mlp: to avoid OOM, i modified the embedding table to use
+(vocab_size=25670, embbedding_dim=24) and a final linear layer to project to vocab_size=25670.
 
 ### mlp loss curve
 

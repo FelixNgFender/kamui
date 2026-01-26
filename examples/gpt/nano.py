@@ -1,8 +1,8 @@
-# ruff: noqa: INP001, N812, S101, N806, T201
+# ruff: noqa: INP001, N812, S101, N806, T201, PLR0915
 import enum
 import pathlib
 import random
-from typing import Protocol
+from typing import Protocol, assert_never
 
 import matplotlib.pyplot as plt
 import torch
@@ -12,15 +12,16 @@ from torch import nn, optim
 
 
 class ModelType(enum.StrEnum):
-    CHAR_BIGRAM = "char_bigram"
-    WORD_MLP = "word_mlp"
+    CHAR_BIGRAM = enum.auto()
+    WORD_MLP = enum.auto()
+    CHAR_TRANSFORMER = enum.auto()
 
 
 USE_ACCELERATOR = True
 TORCH_SEED = 2147483647
 SEED = 42
 INPUT_FILE = "tinyshakespeare.txt"
-MODEL_TYPE: ModelType = ModelType.WORD_MLP
+MODEL_TYPE: ModelType = ModelType.CHAR_TRANSFORMER
 
 
 TRAIN_SPLIT = 0.9
@@ -28,13 +29,16 @@ VAL_SPLIT = 0.1
 assert TRAIN_SPLIT + VAL_SPLIT == 1.0
 
 # hyperparams
-CONTEXT_SIZE = 8  # the maximum length of predictions
-EMBEDDING_SIZE = 24
-HIDDEN_SIZE = 128
-NUM_LAYERS = 5
+CONTEXT_SIZE = 256  # the maximum length of predictions
+EMBEDDING_SIZE = 384
+TRANSFORMER_NUM_HEADS = 6
+TRANSFORMER_NUM_BLOCKS = 6
+FEEDFORWARD_PROJECTION_FACTOR = 4
+DROPOUT = 0.2
+# training
 BATCH_SIZE = 64  # the number of independent sequences to process at once
-LEARNING_RATE = 1e-3
-NUM_EPOCHS = 10
+LEARNING_RATE = 3e-4
+NUM_EPOCHS = 2
 
 random.seed(SEED)
 torch.manual_seed(TORCH_SEED)
@@ -103,6 +107,10 @@ class TinyShakespeare(data_utils.Dataset):
 
 
 class LanguageModel(nn.Module):
+    def __init__(self, context_size: int) -> None:
+        super().__init__()
+        self.context_size = context_size
+
     def calculate_loss(self, idx: torch.Tensor, targets: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """idx and targets both have shape (B, T)"""
         logits = self(idx)
@@ -122,10 +130,9 @@ class LanguageModel(nn.Module):
     def generate(self, idx: torch.Tensor, *, max_new_tokens: int) -> torch.Tensor:
         """idx is (B, T) array of indices in the current context"""
         for _ in range(max_new_tokens):
-            # extremely expensive for now because we're feeding the whole
-            # context into the model despite it only needing the last character
-            # but keep for generalizability
-            logits = self(idx)  # (B, T, C)
+            # crop idx  to the last context_size tokens
+            idx_cropped = idx[:, -self.context_size :]
+            logits = self(idx_cropped)  # (B, T, C)
             # focus on the last timestep
             logits = logits[:, -1, :]  # (B, C)
             probs = F.softmax(logits, dim=-1)
@@ -136,8 +143,8 @@ class LanguageModel(nn.Module):
 
 
 class CharBigram(LanguageModel):
-    def __init__(self, vocab_size: int) -> None:
-        super().__init__()
+    def __init__(self, *, context_size: int, vocab_size: int) -> None:
+        super().__init__(context_size)
         self.embedding = nn.Embedding(vocab_size, vocab_size)
 
     def forward(self, idx: torch.Tensor) -> torch.Tensor:
@@ -146,8 +153,8 @@ class CharBigram(LanguageModel):
 
 
 class WordMLP(LanguageModel):
-    def __init__(self, vocab_size: int, embedding_size: int) -> None:
-        super().__init__()
+    def __init__(self, *, context_size: int, vocab_size: int, embedding_size: int) -> None:
+        super().__init__(context_size)
         self.embedding = nn.Embedding(vocab_size, embedding_size)
         self.proj = nn.Linear(embedding_size, vocab_size)
 
@@ -155,6 +162,140 @@ class WordMLP(LanguageModel):
         """idx has shape (B, T)"""
         embeddings = self.embedding(idx)  # (B, T, embedding_size)
         return self.proj(embeddings)  # (B, T, vocab_size)
+
+
+class AttentionHead(nn.Module):
+    def __init__(self, *, context_size: int, embedding_size: int, head_size: int, dropout: float) -> None:
+        super().__init__()
+        self.head_size = head_size
+        self.key = nn.Linear(embedding_size, head_size, bias=False)
+        self.query = nn.Linear(embedding_size, head_size, bias=False)
+        self.value = nn.Linear(embedding_size, head_size, bias=False)
+        self.register_buffer("tril", torch.tril(torch.ones(context_size, context_size)))
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        _, T, _ = x.shape
+        x_q = self.query(x)  # (B, T, C) @ (C, head_size) -> (B, T, head_size)
+        x_k = self.key(x)  # same
+        x_v = self.value(x)  # same
+
+        # attention scores/affinities
+        attn = x_q @ x_k.transpose(-2, -1) * self.head_size**-0.5  # (B, T, T)
+        attn = attn.masked_fill(self.tril[:T, :T] == 0.0, float("-inf"))  # ty:ignore[not-subscriptable]
+        attn = attn.softmax(dim=-1)
+        attn = self.dropout(attn)
+        # weighted aggregation of the values
+        return attn @ x_v  # (B, T, T) @ (B, T, head_size) -> (B, T, head_size)
+
+
+class MultiHeadAttention(nn.Module):
+    def __init__(
+        self,
+        *,
+        context_size: int,
+        num_heads: int,
+        head_size: int,
+        embedding_size: int,
+        dropout: float,
+    ) -> None:
+        super().__init__()
+        self.heads = nn.ModuleList(
+            AttentionHead(
+                context_size=context_size, embedding_size=embedding_size, head_size=head_size, dropout=dropout
+            )
+            for _ in range(num_heads)
+        )
+        self.proj = nn.Linear(num_heads * head_size, embedding_size)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """x has shape (B, T, embedding_size)"""
+        # cat((B, T, head_size) x num_heads) -> (B, T, head_size * num_heads)
+        out = torch.cat([h(x) for h in self.heads], dim=-1)
+        out = self.proj(out)
+        return self.dropout(out)
+
+
+class FeedForward(nn.Module):
+    """a simple feed-forward network"""
+
+    def __init__(self, embedding_size: int, projection_factor: int, dropout: float) -> None:
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(embedding_size, projection_factor * embedding_size),
+            nn.ReLU(),
+            nn.Linear(projection_factor * embedding_size, embedding_size),
+            nn.Dropout(dropout),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x)
+
+
+class TransformerBlock(nn.Module):
+    """a simple transfomer block: communication followed by computation, also a light touch of residual connections"""
+
+    def __init__(
+        self, *, context_size: int, num_heads: int, embedding_size: int, ffw_projection_factor: int, dropout: float
+    ) -> None:
+        super().__init__()
+        head_size = embedding_size // num_heads
+        self.sa = MultiHeadAttention(
+            context_size=context_size,
+            num_heads=num_heads,
+            head_size=head_size,
+            embedding_size=embedding_size,
+            dropout=dropout,
+        )
+        self.ffwd = FeedForward(embedding_size=embedding_size, projection_factor=ffw_projection_factor, dropout=dropout)
+        self.ln1 = nn.LayerNorm(embedding_size)
+        self.ln2 = nn.LayerNorm(embedding_size)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x + self.sa(self.ln1(x))  # pre-norm formulation
+        return x + self.ffwd(self.ln2(x))
+
+
+class CharTransformer(LanguageModel):
+    def __init__(  # noqa: PLR0913
+        self,
+        *,
+        vocab_size: int,
+        context_size: int,
+        embedding_size: int,
+        num_blocks: int,
+        num_heads: int,
+        ffw_projection_factor: int,
+        dropout: float,
+    ) -> None:
+        super().__init__(context_size)
+        self.embed = nn.Embedding(vocab_size, embedding_size)
+        self.pos_embed = nn.Embedding(context_size, embedding_size)
+        self.blocks = nn.Sequential(
+            *[
+                TransformerBlock(
+                    context_size=context_size,
+                    num_heads=num_heads,
+                    embedding_size=embedding_size,
+                    ffw_projection_factor=ffw_projection_factor,
+                    dropout=dropout,
+                )
+                for _ in range(num_blocks)
+            ],
+        )
+        self.ln_f = nn.LayerNorm(embedding_size)
+        self.lm_head = nn.Linear(embedding_size, vocab_size)
+
+    def forward(self, idx: torch.Tensor) -> torch.Tensor:
+        """idx has shape (B, T)"""
+        _, T = idx.shape
+        tok_embed = self.embed(idx)  # (B, T, embedding_size)
+        pos_embed = self.pos_embed(torch.arange(T, device=idx.device))  # (T, embedding_size)
+        embeddings = tok_embed + pos_embed  # (B, T, embedding_size) broadcast over B
+        embeddings = self.blocks(embeddings)  # (B, T, embedding_size)
+        embeddings = self.ln_f(embeddings)  # (B, T, embedding_size)
+        return self.lm_head(embeddings)  # (B, T, vocab_size)
 
 
 def train_lm(
@@ -201,7 +342,7 @@ def test_lm(
 
 def main() -> None:
     match MODEL_TYPE:
-        case ModelType.CHAR_BIGRAM:
+        case ModelType.CHAR_BIGRAM | ModelType.CHAR_TRANSFORMER:
             vocab_size = len(chars)
             encoder: Encoder = encode_char
             decoder: Decoder = decode_char
@@ -219,10 +360,33 @@ def main() -> None:
 
     match MODEL_TYPE:
         case ModelType.CHAR_BIGRAM:
-            model = CharBigram(vocab_size).to(device)
+            model = CharBigram(context_size=CONTEXT_SIZE, vocab_size=vocab_size).to(device)
         case ModelType.WORD_MLP:
-            model = WordMLP(vocab_size, EMBEDDING_SIZE).to(device)
+            model = WordMLP(context_size=CONTEXT_SIZE, vocab_size=vocab_size, embedding_size=EMBEDDING_SIZE).to(device)
+        case ModelType.CHAR_TRANSFORMER:
+            model = CharTransformer(
+                num_blocks=TRANSFORMER_NUM_BLOCKS,
+                num_heads=TRANSFORMER_NUM_HEADS,
+                context_size=CONTEXT_SIZE,
+                vocab_size=vocab_size,
+                embedding_size=EMBEDDING_SIZE,
+                ffw_projection_factor=FEEDFORWARD_PROJECTION_FACTOR,
+                dropout=DROPOUT,
+            ).to(device)
+        case _:
+            assert_never(model)
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE)
+
+    print(model)
+    print("dataset size:", len(train_dataset) + len(val_dataset))
+    print("train size:", len(train_dataset))
+    print("val size:", len(val_dataset))
+    print("batch size:", BATCH_SIZE)
+    print("device:", device)
+    print("model type:", MODEL_TYPE)
+    print("vocab size:", vocab_size)
+    print("context size:", CONTEXT_SIZE)
+    print("model parameters:", sum(p.numel() for p in model.parameters()))
 
     test_lm(train_dataloader, model)
     test_lm(val_dataloader, model)
