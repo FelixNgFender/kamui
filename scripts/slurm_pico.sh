@@ -11,6 +11,8 @@
 
 set -euo pipefail
 
+mkdir -p logs
+
 echo "starting batch job on $(hostname) at $(date)"
 nvidia-smi
 
