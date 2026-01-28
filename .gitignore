@@ -18,4 +18,3 @@ runs/
 # slurm logs
 logs/
 checkpoints/
-weights/

@@ -1,6 +1,6 @@
 # gpt from scratch
 
-## char-level bigram
+## character-level bigram
 
 ```txt
 CharBigram(
@@ -40,48 +40,42 @@ Jutod 'sothandora sdeneperen 't:
 Yofth ll g's sed liset; i
 ```
 
-1 epoch
+## character-level transformer
 
+### transformer loss curve
+
+![Transformer loss curve](char_transformer_loss.png)
+
+### transformer results
+
+before training
+
+```txt
 val set avg loss: 4.308069
 
-;wtEnWDo&OUlAicSp!-di!lAZycWFa;GYtfxf$LC!TTu,okI!ctqLfBlSsIeDFotkpRv&Bi3;Mihbrp&CsxTh MoEkT&j3GllSPr
+;wtEnWDo&OUlAicSp!-di!lAZycWFa;GYtfxf$LC!TTu,okI!ctqLfBlSsIeDFotkpRv&Bi3;Mihbrp&CsxTh MoEkT&j3GllSPrC'lljyoyHW
+JqBjEUvAq?MbpComIy,BhM-SBglPHYSp!Ugko&
+oSCdwuhpTEyWb-idcy$;lSJxBQmd;Ri?Pq&gynzQOUou;VD:yjWdKuu-,wFBuFusg shnAtlDK?yG,.IhOdMHioJU;XOyO:P3
+DCXF&qgo&x;n?&r$veCJqU?Kgl-ILxPFcyoJPhW3WypXNX
+BJPTfuUlZ.gfkuKAtYFqinGTX:vVir,&r?LZVt3H&$SvHRZJuwHXp'!qx;KN&h&T WdAEJ&DTT$
+',:vYcRg&ClEMg', JEdXuGGri;;i'XQrcILQrFuCEVKXwpi&EmqIGdT-VLer!D?Ov3wOvwHrgj-h-F&PqzMi:Coq? lg-R3Ao'P KgJHicOIouVvogpo&JOY3?PguQkS
+```
 
-train set loss: loss: 0.512658 [998464/1003595]
-val set avg loss: 2.267705
-
-Clifford, ask mercy and his trade.
-
-CLIFFORD:
-My gracious liege, this tidings; therefore we parted
-T
+after training for 5 epochs
 
 ```txt
 best val set avg loss (epoch=1): 2.2700939
 
 (no train set because takes too long)
 final val set avg loss (epoch=5): 3.3807906
-sample after training:
-By and by, my strength, and I hope him come in.
+```
 
-PRINCE EDWARD:
-Arise, uncle; on my party, I will cry you mercy;
-I did not see your grace: humbly on my knee
-I crave your blessing.
+[sampling at epoch 5](./media/char_transformer_sample.txt).
 
-DUCHESS OF YORK:
-God bless thee; and put meekness in thy mind,
-Love, charity, obedience, and true duty!
+## sampling with cli
 
-GLOUCESTER:
+best weights-only checkpoints for both models are saved in [the weights directory](../../weights/). you can sample from them using the picogpt cli:
 
-BUCKINGHAM:
-Your grace may do your pleasure.
-
-KING RICHARD III:
-Tut, tut, thou art all ice, thy kindness' eyes,
-That none but Henry did usurp;
-And thou no more are prince than she is queen.
-
-OXFORD:
-Th
+```bash
+picogpt sample char-transformer --checkpoint weights/char_transformer/20260127_225553/best.pt --tokenizer-dir weights/char_tokenizer/20260127_225553/ --tokens 10000
 ```
