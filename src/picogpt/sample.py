@@ -11,7 +11,7 @@ from picogpt import settings, tokenizers, training
 logger = logging.getLogger(__name__)
 
 
-def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> None:  # noqa: PLR0915
+def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> None:  # noqa: C901, PLR0912, PLR0915
     if not sample_settings.checkpoint.exists():
         msg = f"checkpoint file not found: {sample_settings.checkpoint}"
         raise FileNotFoundError(msg)
@@ -51,9 +51,16 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
     logger.debug("loading checkpoint from %s", sample_settings.checkpoint)
     with torch.serialization.safe_globals([training.Checkpoint, model_mod.Type]):
         checkpoint = torch.load(sample_settings.checkpoint, map_location=device, weights_only=True)
-    model.load_state_dict(checkpoint.model_state_dict)
-    model.eval()
+        if isinstance(checkpoint, training.Checkpoint):
+            model_state_dict = checkpoint.model_state_dict
+        elif isinstance(checkpoint, dict):
+            model_state_dict = checkpoint
+        else:
+            msg = f"unsupported checkpoint type: {type(checkpoint)}"
+            raise TypeError(msg)
+    model.load_state_dict(model_state_dict)
 
+    model.eval()
     # prepare initial context
     if sample_settings.prompt:
         logger.debug("using prompt: %s", sample_settings.prompt)
