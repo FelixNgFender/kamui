@@ -169,7 +169,7 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
     ctx.sample(tokens_to_generate)
 
     start_epoch = ctx.epoch
-    num_epochs = train_settings.num_epochs
+    num_epochs = start_epoch + train_settings.num_epochs
     best_val_loss = float("inf")
     for epoch in range(start_epoch, num_epochs + 1):
         logger.info("starting epoch %d/%d", epoch, num_epochs)
@@ -188,11 +188,11 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
             ctx.checkpoint(constants.LATEST_CKPT_FILENAME)
 
         ctx.epoch += 1
+        ctx.save_loss_plot()
 
     ctx.checkpoint(
         constants.FINAL_CKPT_FILENAME,
     )
-    ctx.save_loss_plot()
 
     # eval after training
     logger.info("evaluating after training")

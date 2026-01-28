@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import logging
 import pathlib
@@ -42,7 +43,7 @@ class CharTokenizer:
 
         vocab_path = path / constants.VOCAB_FILENAME
         with vocab_path.open("w", encoding="utf-8") as f:
-            json.dump(self.vocab.to_dict(), f, ensure_ascii=False, indent=2)  # ty:ignore[possibly-missing-attribute]
+            json.dump(dataclasses.asdict(self.vocab), f, ensure_ascii=False, indent=2)  # ty:ignore[possibly-missing-attribute]
         logger.info("saved vocab to %s", vocab_path)
 
         tokenizer_path = path / constants.TOKENIZER_FILENAME
