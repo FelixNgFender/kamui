@@ -11,7 +11,11 @@ wheels/
 *env
 
 # PyTorch datasets
-examples/pytorch/data/
+notebooks/pytorch/data/
 *.pth
 # tensorboard logs
 runs/
+# slurm logs
+logs/
+checkpoints/
+weights/

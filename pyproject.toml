@@ -4,8 +4,12 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 authors = [{ name = "felixngfender", email = "ngthinh302@gmail.com" }]
-requires-python = ">=3.14"
-dependencies = []
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.12.0",
+    "rich>=14.3.1",
+]
 
 [build-system]
 requires = ["uv_build>=0.8.23,<0.9.0"]
@@ -29,6 +33,9 @@ dev = [
   "ty>=0.0.9",
 ]
 
+[project.scripts]
+picogpt = "picogpt:main"
+
 [tool.ruff]
 line-length = 120
 lint.exclude = ["*.ipynb"]
@@ -44,4 +51,4 @@ lint.extend-select = ["I"]
 lint.per-file-ignores = { "test/*.py" = ["S101"] }
 
 [tool.ty.src]
-exclude = ["examples/micrograd/mnist.ipynb"]
+exclude = ["notebooks/micrograd/mnist.ipynb"]
