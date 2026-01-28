@@ -6,7 +6,7 @@
 #SBATCH -o logs/picogpt_%j.out
 #SBATCH -e logs/picogpt_%j.err
 #SBATCH -p academic
-#SBATCH -t 01:00:00
+#SBATCH -t 05:00:00
 #SBATCH --gres=gpu:1
 
 set -euo pipefail
@@ -23,6 +23,6 @@ export PYTHONUNBUFFERED=1
 
 uv sync
 source .venv/bin/activate
-picogpt train char-transformer
+picogpt train char-transformer --num-epochs 5
 
 echo "done at $(date)"

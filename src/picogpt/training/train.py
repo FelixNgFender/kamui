@@ -169,10 +169,10 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
     ctx.sample(tokens_to_generate)
 
     start_epoch = ctx.epoch
-    num_epochs = start_epoch + train_settings.num_epochs
+    max_epochs = start_epoch + train_settings.num_epochs
     best_val_loss = float("inf")
-    for epoch in range(start_epoch, num_epochs + 1):
-        logger.info("starting epoch %d/%d", epoch, num_epochs)
+    for epoch in range(start_epoch, max_epochs):
+        logger.info("starting epoch %d/%d", epoch, max_epochs - 1)
         train_lm(ctx)
         val_loss = test_lm(ctx)
 

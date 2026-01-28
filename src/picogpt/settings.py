@@ -157,10 +157,10 @@ class Sample(Log, Seed, Device, ModelBase):
         pathlib.Path,
         pydantic.Field(description="Directory containing tokenizer config"),
     ]
-    max_tokens: Annotated[
+    tokens: Annotated[
         pydantic.PositiveInt,
         pydantic.Field(
-            description="Maximum number of tokens to generate",
+            description="Number of tokens to generate",
         ),
     ] = constants.SAMPLE_MAX_TOKENS
     temperature: Annotated[
@@ -181,7 +181,7 @@ class Sample(Log, Seed, Device, ModelBase):
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
-class Clean(ps.BaseSettings):
+class Clean(Log):
     """Settings for the `clean` CLI subcommand."""
 
     checkpoint_dir: Annotated[

@@ -33,7 +33,7 @@ class TrainCharTransformer(settings.Train, settings.CharTransformer):
         training.train(self, self)
 
 
-class Train(settings.Train):
+class Train(settings.Log):
     """Trains a model on the input file, resuming from the latest checkpoint if needed."""
 
     char_bigram: ps.CliSubCommand[TrainCharBigram]
@@ -69,7 +69,7 @@ class SampleCharTransformer(settings.Sample, settings.CharTransformer):
         sample.sample(self, self)
 
 
-class Sample(settings.Sample):
+class Sample(settings.Log):
     """Samples text from a trained model from its weights and tokenizer."""
 
     char_bigram: ps.CliSubCommand[SampleCharBigram]
@@ -84,8 +84,9 @@ class Clean(settings.Clean):
     """Cleans training artifacts."""
 
     def cli_cmd(self) -> None:
-        model_artifact_dirs = [self.checkpoint_dir / model_type for model_type in model.Type]
+        configure_logging(self)
 
+        model_artifact_dirs = [self.checkpoint_dir / model_type for model_type in model.Type]
         if self.force or rich.prompt.Confirm.ask(
             f"delete all model artifact directories: {', '.join(str(d) for d in model_artifact_dirs)}? THIS ACTION "
             "CANNOT BE UNDONE.",
