@@ -1,5 +1,6 @@
 # ruff: noqa: N812, N806, PLR0913
 import enum
+from collections.abc import Iterator
 
 import torch
 import torch.nn.functional as F
@@ -33,20 +34,46 @@ class LanguageModel(nn.Module):
 
         return logits, loss
 
-    def generate(self, idx: torch.Tensor, *, max_new_tokens: int, temperature: float = 1.0) -> torch.Tensor:
-        """idx is (B, T) array of indices in the current context"""
+    def _sample_next(self, idx: torch.Tensor, temperature: float) -> torch.Tensor:
+        # crop idx  to the last context_size tokens
+        idx_cropped = idx[:, -self.context_size :]
+        logits = self(idx_cropped)  # (B, T, C)
+        # focus on the last timestep
+        logits = logits[:, -1, :]  # (B, C)
+        # apply temperature
+        logits = logits / temperature
+        probs = F.softmax(logits, dim=-1)
+        return torch.multinomial(probs, num_samples=1)
+
+    def generate_stream(
+        self,
+        idx: torch.Tensor,
+        *,
+        max_new_tokens: int,
+        temperature: float = 1.0,
+    ) -> Iterator[torch.Tensor]:
+        """Yield next token tensor (B, 1) at each step."""
         for _ in range(max_new_tokens):
-            # crop idx  to the last context_size tokens
-            idx_cropped = idx[:, -self.context_size :]
-            logits = self(idx_cropped)  # (B, T, C)
-            # focus on the last timestep
-            logits = logits[:, -1, :]  # (B, C)
-            # apply temperature
-            logits = logits / temperature
-            probs = F.softmax(logits, dim=-1)
-            idx_next = torch.multinomial(probs, num_samples=1)  # (B, 1)
-            # append sampled index into the running batches of contexts
-            idx = torch.cat((idx, idx_next), dim=1)  # (B, T + 1)
+            idx_next = self._sample_next(idx, temperature)  # (B, 1)
+            idx = torch.cat((idx, idx_next), dim=1)
+
+            yield idx_next
+
+    def generate(
+        self,
+        idx: torch.Tensor,
+        *,
+        max_new_tokens: int,
+        temperature: float = 1.0,
+    ) -> torch.Tensor:
+        """Non-streaming generate. Returns full sequence."""
+        for idx_next in self.generate_stream(
+            idx,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+        ):
+            idx = torch.cat((idx, idx_next), dim=1)
+
         return idx
 
 
@@ -78,7 +105,7 @@ class AttentionHead(nn.Module):
 
         # attention scores/affinities
         attn = x_q @ x_k.transpose(-2, -1) * self.head_size**-0.5  # (B, T, T)
-        attn = attn.masked_fill(self.tril[:T, :T] == 0.0, float("-inf"))  # ty:ignore[not-subscriptable]
+        attn = attn.masked_fill(self.tril[:T, :T] == 0, float("-inf"))  # ty:ignore[not-subscriptable]
         attn = attn.softmax(dim=-1)
         attn = self.dropout(attn)
         # weighted aggregation of the values

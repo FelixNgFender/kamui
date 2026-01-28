@@ -166,8 +166,8 @@ class Sample(Log, Seed, Device, ModelBase):
     temperature: Annotated[
         float,
         pydantic.Field(
-            gte=0.0,
-            lte=2.0,
+            ge=0.0,
+            le=2.0,
             description="Sampling temperature i.e., how random the sampling should be",
         ),
     ] = constants.SAMPLE_TEMPERATURE
@@ -177,6 +177,10 @@ class Sample(Log, Seed, Device, ModelBase):
             description="Prompt text to start sampling from",
         ),
     ] = None
+    stream: Annotated[
+        ps.CliImplicitFlag[bool],
+        pydantic.Field(description="Stream output tokens to console as they are generated"),
+    ] = True
 
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 

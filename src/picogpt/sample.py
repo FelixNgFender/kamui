@@ -11,7 +11,7 @@ from picogpt import settings, tokenizers, training
 logger = logging.getLogger(__name__)
 
 
-def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> None:
+def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> None:  # noqa: PLR0915
     if not sample_settings.checkpoint.exists():
         msg = f"checkpoint file not found: {sample_settings.checkpoint}"
         raise FileNotFoundError(msg)
@@ -63,45 +63,60 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
         logger.debug("starting with empty context")
         context = torch.zeros((1, 1), dtype=torch.long, device=device)
 
-    prompt_len = context.shape[1]
-
     logger.debug(
-        "generating %d tokens with temperature %.2f",
+        "generating %d tokens with temperature %.2f (stream=%s)",
         sample_settings.tokens,
         sample_settings.temperature,
+        sample_settings.stream,
     )
 
+    # warmup cuda timing
     if device == torch.device("cuda"):
         torch.cuda.synchronize()
 
     t0 = time.perf_counter()
 
-    with torch.no_grad():
-        generated = model.generate(
-            context,
-            max_new_tokens=sample_settings.tokens,
-            temperature=sample_settings.temperature,
-        )
+    if sample_settings.stream:
+        new_toks = 0
+
+        with torch.no_grad():
+            for idx_next in model.generate_stream(
+                context,
+                max_new_tokens=sample_settings.tokens,
+                temperature=sample_settings.temperature,
+            ):
+                tokens = idx_next[0].tolist()
+                text = tokenizer.decode(tokens)
+
+                print(text, end="", flush=True)  # noqa: T201
+                new_toks += 1
+
+    else:
+        with torch.no_grad():
+            out = model.generate(
+                context,
+                max_new_tokens=sample_settings.tokens,
+                temperature=sample_settings.temperature,
+            )
+
+        # slice only newly generated tokens
+        gen = out[:, context.shape[1] :]
+        new_toks = gen.shape[1]
+
+        text = tokenizer.decode(gen[0].tolist())
+        print(text, end="", flush=True)  # noqa: T201
 
     if device == torch.device("cuda"):
         torch.cuda.synchronize()
 
     t1 = time.perf_counter()
     elapsed = t1 - t0
-
-    # decode
-    generated_idx = generated[0].tolist()
-    generated_text = tokenizer.decode(generated_idx)
-
-    print(generated_text)  # noqa: T201
-
-    total_tokens = len(generated_idx)
-    new_tokens = total_tokens - prompt_len
-    tps = new_tokens / elapsed if elapsed > 0 else float("inf")
+    tps = new_toks / elapsed if elapsed > 0 else float("inf")
 
     logger.info(
-        "generation complete: %d new tokens in %.3fs (%.2f tokens/sec)",
-        new_tokens,
+        "generated %d tokens in %.3fs (%.2f tokens/sec, stream=%s)",
+        new_toks,
         elapsed,
         tps,
+        sample_settings.stream,
     )
