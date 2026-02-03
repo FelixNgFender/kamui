@@ -5,8 +5,8 @@ import pathlib
 from collections.abc import Iterable
 
 from picogpt import constants
-from picogpt.tokenizers import tokenizer
-from picogpt.tokenizers import vocab as vocab_mod
+from picogpt.tokenice import tokenizer
+from picogpt.tokenice import vocab as vocab_mod
 
 logger = logging.getLogger(__name__)
 

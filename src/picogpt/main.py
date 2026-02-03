@@ -33,6 +33,13 @@ class TrainCharTransformer(settings.Train, settings.CharTransformer):
         training.train(self, self)
 
 
+class TrainGPT2(settings.Train, settings.GPT2):
+    """Trains the GPT2 (124M) model from OpenAI."""
+
+    def cli_cmd(self) -> None:
+        training.train(self, self)
+
+
 class Train(settings.Log):
     """Trains a model on the input file, resuming from the latest checkpoint if needed."""
 

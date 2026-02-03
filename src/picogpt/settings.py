@@ -54,21 +54,21 @@ class CharBigram(ModelBase):
 class CharTransformer(ModelBase):
     """Settings for creating a character-level transformer model."""
 
-    embedding_size: Annotated[
+    transformer_embedding_size: Annotated[
         pydantic.PositiveInt,
         pydantic.Field(description="Embedding size for the model"),
-    ] = constants.EMBEDDING_SIZE
+    ] = constants.TRANSFORMER_EMBEDDING_SIZE
     transformer_num_blocks: Annotated[
         pydantic.PositiveInt,
         pydantic.Field(description="Number of transformer blocks"),
     ] = constants.TRANSFORMER_NUM_BLOCKS
     transformer_num_heads: Annotated[
         pydantic.PositiveInt,
-        pydantic.Field(description="Number of transformer heads"),
+        pydantic.Field(description="Number of transformer heads per layer"),
     ] = constants.TRANSFORMER_NUM_HEADS
     transformer_feedforward_projection_factor: Annotated[
         pydantic.PositiveInt,
-        pydantic.Field(description="Transfomer feedforward projection factor"),
+        pydantic.Field(description="Transformer feedforward projection factor"),
     ] = constants.TRANSFORMER_FEEDFORWARD_PROJECTION_FACTOR
     transformer_dropout: Annotated[
         float,
@@ -78,7 +78,35 @@ class CharTransformer(ModelBase):
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
-Model = CharBigram | CharTransformer
+class GPT2(ModelBase):
+    """Settings for creating the GPT-2 (124M) model from OpenAI."""
+
+    # override
+    context_size: Annotated[
+        pydantic.PositiveInt,
+        pydantic.Field(description="Context size for the model"),
+    ] = constants.GPT2_CONTEXT_SIZE
+    gpt2_embedding_size: Annotated[
+        pydantic.PositiveInt,
+        pydantic.Field(description="Embedding size for the model"),
+    ] = constants.GPT2_EMBEDDING_SIZE
+    gpt2_num_layers: Annotated[
+        pydantic.PositiveInt,
+        pydantic.Field(description="Number of transformer layers"),
+    ] = constants.GPT2_NUM_LAYERS
+    gpt2_num_heads: Annotated[
+        pydantic.PositiveInt,
+        pydantic.Field(description="Number of transformer heads per layer"),
+    ] = constants.GPT2_NUM_HEADS
+    gpt2_feedforward_projection_factor: Annotated[
+        pydantic.PositiveInt,
+        pydantic.Field(description="Transformer feedforward projection factor"),
+    ] = constants.GPT2_FEEDFORWARD_PROJECTION_FACTOR
+
+    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+
+
+Model = CharBigram | CharTransformer | GPT2
 
 
 class Train(Log, Seed, Device):
@@ -171,6 +199,12 @@ class Sample(Log, Seed, Device, ModelBase):
             description="Sampling temperature i.e., how random the sampling should be",
         ),
     ] = constants.SAMPLE_TEMPERATURE
+    top_k: Annotated[
+        pydantic.PositiveInt | None,
+        pydantic.Field(
+            description="Number of top K tokens to consider for sampling (None = no top-k filtering)",
+        ),
+    ] = constants.SAMPLE_TOP_K
     prompt: Annotated[
         str | None,
         pydantic.Field(

@@ -6,7 +6,7 @@ from typing import assert_never
 import torch
 
 from picogpt import model as model_mod
-from picogpt import settings, tokenizers, training
+from picogpt import settings, tokenice, training
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
         else torch.device("cpu")
     )
 
-    tokenizer = tokenizers.CharTokenizer.load(sample_settings.tokenizer_dir)
+    tokenizer = tokenice.CharTokenizer.load(sample_settings.tokenizer_dir)
     context_size = sample_settings.context_size
 
     # create model with correct architecture
@@ -40,9 +40,18 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
                 num_heads=model_settings.transformer_num_heads,
                 context_size=context_size,
                 vocab_size=tokenizer.vocab_size,
-                embedding_size=model_settings.embedding_size,
+                embedding_size=model_settings.transformer_embedding_size,
                 ffw_projection_factor=model_settings.transformer_feedforward_projection_factor,
                 dropout=model_settings.transformer_dropout,
+            ).to(device)
+        case settings.GPT2():
+            model = model_mod.GPT2(
+                context_size=context_size,
+                vocab_size=tokenizer.vocab_size,
+                embedding_size=model_settings.gpt2_embedding_size,
+                num_layers=model_settings.gpt2_num_layers,
+                num_heads=model_settings.gpt2_num_heads,
+                ffw_projection_factor=model_settings.gpt2_feedforward_projection_factor,
             ).to(device)
         case _:
             assert_never(model_settings)
@@ -104,6 +113,7 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
                 context,
                 max_new_tokens=sample_settings.tokens,
                 temperature=sample_settings.temperature,
+                top_k=sample_settings.top_k,
             )
 
         # slice only newly generated tokens

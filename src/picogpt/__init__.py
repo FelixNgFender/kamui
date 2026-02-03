@@ -1,4 +1,4 @@
 from picogpt.main import main
-from picogpt.model import CharBigram, CharTransformer, LanguageModel
+from picogpt.model import GPT2, CharBigram, CharTransformer, LanguageModel
 
-__all__ = ["CharBigram", "CharTransformer", "LanguageModel", "main"]
+__all__ = ["GPT2", "CharBigram", "CharTransformer", "LanguageModel", "main"]

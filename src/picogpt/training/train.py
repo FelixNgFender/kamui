@@ -7,7 +7,7 @@ import torch
 import torch.utils.data as data_utils
 from torch import optim
 
-from picogpt import constants, settings, tokenizers, training, utils
+from picogpt import constants, settings, tokenice, training, utils
 from picogpt import model as model_mod
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class PicoDataset(data_utils.Dataset):
     def __init__(
         self,
-        tokenizer: tokenizers.Tokenizer,
+        tokenizer: tokenice.Tokenizer,
         text: str,
         context_size: int,
     ) -> None:
@@ -90,7 +90,7 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
     # prepare dataset
     with train_settings.input_file.open("r", encoding="utf-8") as f:
         text = f.read()
-    tokenizer = tokenizers.CharTokenizer.train([text])
+    tokenizer = tokenice.CharTokenizer.train([text])
 
     n1 = int(train_settings.train_split * len(text))
     train_dataset = PicoDataset(
@@ -110,30 +110,36 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
     # create training context
     match model_settings:
         case settings.CharBigram():
-            model_type = model_mod.Type.CHAR_BIGRAM
             model = model_mod.CharBigram(context_size=context_size, vocab_size=tokenizer.vocab_size).to(device)
         case settings.CharTransformer():
-            model_type = model_mod.Type.CHAR_TRANSFORMER
             model = model_mod.CharTransformer(
                 num_blocks=model_settings.transformer_num_blocks,
                 num_heads=model_settings.transformer_num_heads,
                 context_size=context_size,
                 vocab_size=tokenizer.vocab_size,
-                embedding_size=model_settings.embedding_size,
+                embedding_size=model_settings.transformer_embedding_size,
                 ffw_projection_factor=model_settings.transformer_feedforward_projection_factor,
                 dropout=model_settings.transformer_dropout,
+            ).to(device)
+        case settings.GPT2():
+            model = model_mod.GPT2(
+                context_size=context_size,
+                vocab_size=tokenizer.vocab_size,
+                embedding_size=model_settings.gpt2_embedding_size,
+                num_layers=model_settings.gpt2_num_layers,
+                num_heads=model_settings.gpt2_num_heads,
+                ffw_projection_factor=model_settings.gpt2_feedforward_projection_factor,
             ).to(device)
         case _:
             assert_never(model_settings)
 
     optimizer = optim.AdamW(model.parameters(), lr=train_settings.learning_rate)
 
-    run_checkpoint_dir = train_settings.checkpoint_dir / model_type / utils.get_current_datetime()
+    run_checkpoint_dir = train_settings.checkpoint_dir / model.TYPE / utils.get_current_datetime()
     run_checkpoint_dir.mkdir(parents=True, exist_ok=True)
     tokenizer.save(run_checkpoint_dir / constants.TOKENIZER_DIR)
 
     ctx = training.Context(
-        model_type=model_type,
         model=model,
         optimizer=optimizer,
         device=device,
@@ -154,7 +160,7 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
     logger.info("batch size: %d", ctx.train_loader.batch_size)
     logger.info("epoch: %d", ctx.epoch)
 
-    logger.info("model type: %s", ctx.model_type)
+    logger.info("model type: %s", ctx.model.TYPE)
     logger.info("model info %s", ctx.model)
     logger.info("device: %s", ctx.device)
     logger.info("tokenizer %s", ctx.tokenizer.TYPE)

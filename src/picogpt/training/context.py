@@ -8,7 +8,7 @@ import torch
 from torch import optim
 from torch.utils import data as data_utils
 
-from picogpt import constants, model, tokenizers, training
+from picogpt import constants, model, tokenice, training
 
 logger = logging.getLogger(__name__)
 
@@ -17,11 +17,10 @@ logger = logging.getLogger(__name__)
 class Context:
     """Run-specific training context holding all state and configuration."""
 
-    model_type: model.Type
     model: model.LanguageModel
     optimizer: optim.Optimizer
     device: torch.device
-    tokenizer: tokenizers.Tokenizer
+    tokenizer: tokenice.Tokenizer
     train_loader: data_utils.DataLoader
     val_loader: data_utils.DataLoader
     checkpoint_dir: pathlib.Path
@@ -34,7 +33,7 @@ class Context:
     ) -> None:
         """Save model checkpoint to checkpoint_dir."""
         checkpoint = training.Checkpoint(
-            model_type=self.model_type,
+            model_type=self.model.TYPE,
             epoch=self.epoch,
             model_state_dict=self.model.state_dict(),
             optimizer_state_dict=self.optimizer.state_dict(),
@@ -53,8 +52,10 @@ class Context:
         if not isinstance(checkpoint, training.Checkpoint):
             msg = f"invalid checkpoint format: {type(checkpoint)}"
             raise TypeError(msg)
+        if model.Type(checkpoint.model_type) != self.model.TYPE:
+            msg = f"checkpoint model type {checkpoint.model_type} does not match current model type {self.model.TYPE}"
+            raise ValueError(msg)
 
-        self.model_type = model.Type(checkpoint.model_type)
         self.model.load_state_dict(checkpoint.model_state_dict)
         self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
         self.epoch = checkpoint.epoch
@@ -69,7 +70,7 @@ class Context:
         plt.plot(self.loss_history)
         plt.xlabel("iteration")
         plt.ylabel("log10 loss")
-        plt.title(f"training loss curve for {self.model_type}")
+        plt.title(f"training loss curve for {self.model.TYPE}")
         plt.savefig(loss_path)
         plt.close()
         logger.info("loss plot saved to %s", loss_path)
