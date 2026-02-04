@@ -1,6 +1,9 @@
 import logging
+import pathlib
 import shutil
+from typing import Annotated, ClassVar
 
+import pydantic
 import pydantic_settings as ps
 import rich.logging
 import rich.prompt
@@ -45,6 +48,7 @@ class Train(settings.Log):
 
     char_bigram: ps.CliSubCommand[TrainCharBigram]
     char_transformer: ps.CliSubCommand[TrainCharTransformer]
+    gpt2: ps.CliSubCommand[TrainGPT2]
 
     def cli_cmd(self) -> None:
         configure_logging(self)
@@ -76,11 +80,30 @@ class SampleCharTransformer(settings.Sample, settings.CharTransformer):
         sample.sample(self, self)
 
 
+class SampleGPT2(settings.Sample, settings.GPT2):
+    """Samples the GPT2 (124M) model from OpenAI."""
+
+    # override
+    checkpoint: Annotated[
+        pathlib.Path | None,
+        pydantic.Field(
+            description="Weights-only checkpoint to sample from. If none, downloads and uses the pre-trained "
+            "GPT2 weights."
+        ),
+    ] = None
+    # override: GPT2 uses a built-in tokenizer
+    tokenizer_dir: ClassVar[None] = None
+
+    def cli_cmd(self) -> None:
+        sample.sample(self, self)
+
+
 class Sample(settings.Log):
     """Samples text from a trained model from its weights and tokenizer."""
 
     char_bigram: ps.CliSubCommand[SampleCharBigram]
     char_transformer: ps.CliSubCommand[SampleCharTransformer]
+    gpt2: ps.CliSubCommand[SampleGPT2]
 
     def cli_cmd(self) -> None:
         configure_logging(self)

@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> None:  # noqa: C901, PLR0912, PLR0915
-    if not sample_settings.checkpoint.exists():
+    if sample_settings.checkpoint and not sample_settings.checkpoint.exists():
         msg = f"checkpoint file not found: {sample_settings.checkpoint}"
         raise FileNotFoundError(msg)
 
@@ -24,17 +24,18 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
         else torch.device("cpu")
     )
 
-    tokenizer = tokenice.CharTokenizer.load(sample_settings.tokenizer_dir)
     context_size = sample_settings.context_size
 
     # create model with correct architecture
     match model_settings:
         case settings.CharBigram():
+            tokenizer = tokenice.CharTokenizer.load(sample_settings.tokenizer_dir)
             model = model_mod.CharBigram(
                 context_size=context_size,
                 vocab_size=tokenizer.vocab_size,
             ).to(device)
         case settings.CharTransformer():
+            tokenizer = tokenice.CharTokenizer.load(sample_settings.tokenizer_dir)
             model = model_mod.CharTransformer(
                 num_blocks=model_settings.transformer_num_blocks,
                 num_heads=model_settings.transformer_num_heads,
@@ -45,29 +46,35 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
                 dropout=model_settings.transformer_dropout,
             ).to(device)
         case settings.GPT2():
-            model = model_mod.GPT2(
-                context_size=context_size,
-                vocab_size=tokenizer.vocab_size,
-                embedding_size=model_settings.gpt2_embedding_size,
-                num_layers=model_settings.gpt2_num_layers,
-                num_heads=model_settings.gpt2_num_heads,
-                ffw_projection_factor=model_settings.gpt2_feedforward_projection_factor,
-            ).to(device)
+            tokenizer = tokenice.GPT2Tokenizer()
+            if sample_settings.checkpoint is None:
+                logger.debug("loading pretrained gpt2 model")
+                model = model_mod.GPT2.from_pretrained("gpt2").to(device)
+            else:
+                model = model_mod.GPT2(
+                    context_size=context_size,
+                    vocab_size=tokenizer.vocab_size,
+                    embedding_size=model_settings.gpt2_embedding_size,
+                    num_layers=model_settings.gpt2_num_layers,
+                    num_heads=model_settings.gpt2_num_heads,
+                    ffw_projection_factor=model_settings.gpt2_feedforward_projection_factor,
+                ).to(device)
         case _:
             assert_never(model_settings)
 
     # load checkpoint
-    logger.debug("loading checkpoint from %s", sample_settings.checkpoint)
-    with torch.serialization.safe_globals([training.Checkpoint, model_mod.Type]):
-        checkpoint = torch.load(sample_settings.checkpoint, map_location=device, weights_only=True)
-        if isinstance(checkpoint, training.Checkpoint):
-            model_state_dict = checkpoint.model_state_dict
-        elif isinstance(checkpoint, dict):
-            model_state_dict = checkpoint
-        else:
-            msg = f"unsupported checkpoint type: {type(checkpoint)}"
-            raise TypeError(msg)
-    model.load_state_dict(model_state_dict)
+    if sample_settings.checkpoint is not None:
+        logger.debug("loading checkpoint from %s", sample_settings.checkpoint)
+        with torch.serialization.safe_globals([training.Checkpoint, model_mod.Type]):
+            checkpoint = torch.load(sample_settings.checkpoint, map_location=device, weights_only=True)
+            if isinstance(checkpoint, training.Checkpoint):
+                model_state_dict = checkpoint.model_state_dict
+            elif isinstance(checkpoint, dict):
+                model_state_dict = checkpoint
+            else:
+                msg = f"unsupported checkpoint type: {type(checkpoint)}"
+                raise TypeError(msg)
+        model.load_state_dict(model_state_dict)
 
     model.eval()
     # prepare initial context
@@ -122,6 +129,8 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
 
         text = tokenizer.decode(gen[0].tolist())
         print(text, end="", flush=True)  # noqa: T201
+    # final newline
+    print()  # noqa: T201
 
     if device == torch.device("cuda"):
         torch.cuda.synchronize()

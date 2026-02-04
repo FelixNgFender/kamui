@@ -2,7 +2,7 @@ import dataclasses
 import json
 import logging
 import pathlib
-from collections.abc import Iterable
+from collections.abc import Sequence
 
 from picogpt import constants
 from picogpt.tokenice import tokenizer
@@ -20,7 +20,7 @@ class CharTokenizer:
     def encode(self, s: str) -> list[int]:
         return [self.vocab.stoi[ch] for ch in s]
 
-    def decode(self, ids: Iterable[int]) -> str:
+    def decode(self, ids: Sequence[int]) -> str:
         return "".join(self.vocab.itos[i] for i in ids)
 
     @property
@@ -30,7 +30,7 @@ class CharTokenizer:
     @classmethod
     def train(
         cls,
-        texts: Iterable[str],
+        texts: Sequence[str],
     ) -> "CharTokenizer":
         chars = sorted(set("".join(texts)))
         stoi = {ch: i for i, ch in enumerate(chars)}

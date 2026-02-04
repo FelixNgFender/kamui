@@ -87,10 +87,39 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
     )
     assert device is not None, "device cannot be None"
 
-    # prepare dataset
+    # prepare model and dataset
     with train_settings.input_file.open("r", encoding="utf-8") as f:
         text = f.read()
-    tokenizer = tokenice.CharTokenizer.train([text])
+
+    match model_settings:
+        case settings.CharBigram():
+            tokenizer = tokenice.CharTokenizer.train([text])
+            model = model_mod.CharBigram(context_size=context_size, vocab_size=tokenizer.vocab_size).to(device)
+        case settings.CharTransformer():
+            tokenizer = tokenice.CharTokenizer.train([text])
+            model = model_mod.CharTransformer(
+                num_blocks=model_settings.transformer_num_blocks,
+                num_heads=model_settings.transformer_num_heads,
+                context_size=context_size,
+                vocab_size=tokenizer.vocab_size,
+                embedding_size=model_settings.transformer_embedding_size,
+                ffw_projection_factor=model_settings.transformer_feedforward_projection_factor,
+                dropout=model_settings.transformer_dropout,
+            ).to(device)
+        case settings.GPT2():
+            tokenizer = tokenice.GPT2Tokenizer()
+            model = model_mod.GPT2(
+                context_size=context_size,
+                vocab_size=tokenizer.vocab_size,
+                embedding_size=model_settings.gpt2_embedding_size,
+                num_layers=model_settings.gpt2_num_layers,
+                num_heads=model_settings.gpt2_num_heads,
+                ffw_projection_factor=model_settings.gpt2_feedforward_projection_factor,
+            ).to(device)
+        case _:
+            assert_never(model_settings)
+
+    optimizer = optim.AdamW(model.parameters(), lr=train_settings.learning_rate)
 
     n1 = int(train_settings.train_split * len(text))
     train_dataset = PicoDataset(
@@ -108,33 +137,6 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
     val_dataloader = data_utils.DataLoader(val_dataset, batch_size)
 
     # create training context
-    match model_settings:
-        case settings.CharBigram():
-            model = model_mod.CharBigram(context_size=context_size, vocab_size=tokenizer.vocab_size).to(device)
-        case settings.CharTransformer():
-            model = model_mod.CharTransformer(
-                num_blocks=model_settings.transformer_num_blocks,
-                num_heads=model_settings.transformer_num_heads,
-                context_size=context_size,
-                vocab_size=tokenizer.vocab_size,
-                embedding_size=model_settings.transformer_embedding_size,
-                ffw_projection_factor=model_settings.transformer_feedforward_projection_factor,
-                dropout=model_settings.transformer_dropout,
-            ).to(device)
-        case settings.GPT2():
-            model = model_mod.GPT2(
-                context_size=context_size,
-                vocab_size=tokenizer.vocab_size,
-                embedding_size=model_settings.gpt2_embedding_size,
-                num_layers=model_settings.gpt2_num_layers,
-                num_heads=model_settings.gpt2_num_heads,
-                ffw_projection_factor=model_settings.gpt2_feedforward_projection_factor,
-            ).to(device)
-        case _:
-            assert_never(model_settings)
-
-    optimizer = optim.AdamW(model.parameters(), lr=train_settings.learning_rate)
-
     run_checkpoint_dir = train_settings.checkpoint_dir / model.TYPE / utils.get_current_datetime()
     run_checkpoint_dir.mkdir(parents=True, exist_ok=True)
     tokenizer.save(run_checkpoint_dir / constants.TOKENIZER_DIR)
