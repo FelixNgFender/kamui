@@ -97,6 +97,10 @@ class GPT2(ModelBase):
         pydantic.PositiveInt,
         pydantic.Field(description="Context size for the model"),
     ] = constants.GPT2_CONTEXT_SIZE
+    gpt2_vocab_size: Annotated[
+        pydantic.PositiveInt,
+        pydantic.Field(description="Vocabulary size for the model"),
+    ] = constants.GPT2_VOCAB_SIZE
     gpt2_embedding_size: Annotated[
         pydantic.PositiveInt,
         pydantic.Field(description="Embedding size for the model"),
@@ -158,10 +162,6 @@ class Train(Log, Seed, Device, Precision):
     ] = constants.SAVE_EVERY_N_EPOCHS
 
     # sample settings
-    tokens_to_generate: Annotated[
-        pydantic.PositiveInt,
-        pydantic.Field(description="Number of tokens to sample before and after training"),
-    ] = constants.TOKENS_TO_GENERATE
     tokens_to_save: Annotated[
         pydantic.PositiveInt,
         pydantic.Field(description="Number of tokens to save to output file"),

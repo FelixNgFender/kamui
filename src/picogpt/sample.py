@@ -55,7 +55,8 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
             else:
                 model = model_mod.GPT2(
                     context_size=context_size,
-                    vocab_size=tokenizer.vocab_size,
+                    # don't use tokenizer.vocab_size for GPT2 cuz we want 50304 for cuda niceness
+                    vocab_size=model_settings.gpt2_vocab_size,
                     embedding_size=model_settings.gpt2_embedding_size,
                     num_layers=model_settings.gpt2_num_layers,
                     num_heads=model_settings.gpt2_num_heads,

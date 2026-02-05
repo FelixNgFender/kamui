@@ -346,6 +346,7 @@ class GPT2(LanguageModel):
         ffw_projection_factor: int,
     ) -> None:
         super().__init__(context_size)
+        self.vocab_size = vocab_size
         self.context_size = context_size
         self.num_layers = num_layers
         self.transformer = nn.ModuleDict(
@@ -409,7 +410,7 @@ class GPT2(LanguageModel):
             "gpt2-large": {"num_layers": 36, "num_heads": 20, "embedding_size": 1280},  # 774M params
             "gpt2-xl": {"num_layers": 48, "num_heads": 25, "embedding_size": 1600},  # 1558M params
         }[model_type]
-        config_args["vocab_size"] = 50257  # share vocab size
+        config_args["vocab_size"] = 50304  # share vocab size
         config_args["context_size"] = 1024  # share context size
         config_args["ffw_projection_factor"] = 4  # share feedforward projection factor
         model = GPT2(

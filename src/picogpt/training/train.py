@@ -85,7 +85,6 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
     # aliases
     batch_size = train_settings.batch_size
     context_size = model_settings.context_size
-    tokens_to_generate = train_settings.tokens_to_generate
     tokens_to_save = train_settings.tokens_to_save
 
     # setup
@@ -108,23 +107,27 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
     match model_settings:
         case settings.CharBigram():
             tokenizer = tokenice.CharTokenizer.train([text])
-            model = model_mod.CharBigram(context_size=context_size, vocab_size=tokenizer.vocab_size)
+            vocab_size = tokenizer.vocab_size
+            model = model_mod.CharBigram(context_size=context_size, vocab_size=vocab_size)
         case settings.CharTransformer():
             tokenizer = tokenice.CharTokenizer.train([text])
+            vocab_size = tokenizer.vocab_size
             model = model_mod.CharTransformer(
                 num_blocks=model_settings.transformer_num_blocks,
                 num_heads=model_settings.transformer_num_heads,
                 context_size=context_size,
-                vocab_size=tokenizer.vocab_size,
+                vocab_size=vocab_size,
                 embedding_size=model_settings.transformer_embedding_size,
                 ffw_projection_factor=model_settings.transformer_feedforward_projection_factor,
                 dropout=model_settings.transformer_dropout,
             )
         case settings.GPT2():
             tokenizer = tokenice.GPT2Tokenizer()
+            # don't use tokenizer.vocab_size for GPT2 cuz we want 50304 for cuda niceness
+            vocab_size = model_settings.gpt2_vocab_size
             model = model_mod.GPT2(
                 context_size=context_size,
-                vocab_size=tokenizer.vocab_size,
+                vocab_size=vocab_size,
                 embedding_size=model_settings.gpt2_embedding_size,
                 num_layers=model_settings.gpt2_num_layers,
                 num_heads=model_settings.gpt2_num_heads,
@@ -177,21 +180,18 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
     logger.info("train size: %d", len(train_dataset))
     logger.info("val size: %d", len(val_dataset))
     logger.info("batch size: %d", ctx.train_loader.batch_size)
-    logger.info("epoch: %d", ctx.epoch)
+    logger.info("epoch: %d/%d", ctx.epoch, train_settings.num_epochs)
 
     logger.info("model type: %s", ctx.model.TYPE)
     logger.info("model info %s", ctx.model)
     logger.info("device: %s", ctx.device)
     logger.info("tokenizer %s", ctx.tokenizer.TYPE)
-    logger.info("vocab size: %d", ctx.tokenizer.vocab_size)
+    logger.info("vocab size: %d", vocab_size)
     logger.info("context size: %d", context_size)
     logger.info("model parameters: %d", sum(p.numel() for p in ctx.model.parameters()))
 
-    # eval before training
-    logger.info("evaluating before training")
-    test_lm(ctx)
-    logger.info("sampling before training")
-    ctx.sample(tokens_to_generate)
+    logger.info("automatic mixed precision: %s", ctx.use_mixed_precision)
+    logger.info("float32 matmul precision: %s", torch.get_float32_matmul_precision())
 
     start_epoch = ctx.epoch
     max_epochs = start_epoch + train_settings.num_epochs

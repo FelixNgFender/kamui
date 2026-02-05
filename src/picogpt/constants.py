@@ -25,14 +25,14 @@ TRANSFORMER_NUM_BLOCKS = 6
 TRANSFORMER_FEEDFORWARD_PROJECTION_FACTOR = 4
 TRANSFORMER_DROPOUT = 0.2
 GPT2_CONTEXT_SIZE = 1024
-GPT2_VOCAB_SIZE = 50257  # 50,000 BPE merges + 256 bytes tokens + 1 <|endoftext|>
+# 50,000 BPE merges + 256 bytes tokens + 1 <|endoftext|>, round up to nearest multiple of 64 for cuda niceness
+GPT2_VOCAB_SIZE = 50304
 GPT2_EMBEDDING_SIZE = 768
 GPT2_NUM_LAYERS = 12
 GPT2_NUM_HEADS = 12
 GPT2_FEEDFORWARD_PROJECTION_FACTOR = 4
 
 # sample during training
-TOKENS_TO_GENERATE = 500
 TOKENS_TO_SAVE = 10000
 
 # checkpointing
