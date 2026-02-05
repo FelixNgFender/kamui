@@ -8,10 +8,13 @@ USE_ACCELERATOR = True
 TRAIN_SPLIT = 0.9
 VAL_SPLIT = 1.0 - TRAIN_SPLIT
 INPUT_FILE = pathlib.Path("data") / "tinyshakespeare.txt"
-
-# hyperparams
 TORCH_SEED = 2147483647
 SEED = 42
+# https://docs.pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html
+FP32_MATMUL_PRECISION = "high"  # "highest", "high", "medium"
+USE_MIXED_PRECISION = True
+
+# hyperparams
 BATCH_SIZE = 64  # the number of independent sequences to process at once
 LEARNING_RATE = 3e-4
 NUM_EPOCHS = 2

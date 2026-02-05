@@ -1,5 +1,5 @@
 import pathlib
-from typing import Annotated
+from typing import Annotated, Literal
 
 import pydantic
 import pydantic_settings as ps
@@ -32,6 +32,17 @@ class Device(ps.BaseSettings):
         ps.CliImplicitFlag[bool],
         pydantic.Field(description="Whether to use accelerator for training"),
     ] = constants.USE_ACCELERATOR
+
+
+class Precision(ps.BaseSettings):
+    fp32_matmul_precision: Annotated[
+        Literal["highest", "high", "medium"],
+        pydantic.Field(description="FP32 matrix multiplication precision for PyTorch"),
+    ] = constants.FP32_MATMUL_PRECISION
+    use_mixed_precision: Annotated[
+        ps.CliImplicitFlag[bool],
+        pydantic.Field(description="Whether to use mixed precision for training and inference"),
+    ] = constants.USE_MIXED_PRECISION
 
 
 class ModelBase(ps.BaseSettings):
@@ -109,7 +120,7 @@ class GPT2(ModelBase):
 Model = CharBigram | CharTransformer | GPT2
 
 
-class Train(Log, Seed, Device):
+class Train(Log, Seed, Device, Precision):
     """Settings for the `train` CLI subcommand."""
 
     # train settings
@@ -174,7 +185,7 @@ class Convert(Log):
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
-class Sample(Log, Seed, Device, ModelBase):
+class Sample(Log, Seed, Device, Precision, ModelBase):
     """Settings for the `sample` CLI subcommand."""
 
     checkpoint: Annotated[

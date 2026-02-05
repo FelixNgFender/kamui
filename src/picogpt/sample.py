@@ -18,11 +18,13 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
 
     random.seed(sample_settings.seed)
     torch.manual_seed(sample_settings.torch_seed)
+    torch.set_float32_matmul_precision(sample_settings.fp32_matmul_precision)
     device = (
         torch.accelerator.current_accelerator()
         if torch.accelerator.is_available() and sample_settings.use_accelerator
         else torch.device("cpu")
     )
+    assert device is not None, "device cannot be None"  # noqa: S101
 
     context_size = sample_settings.context_size
 
@@ -33,7 +35,7 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
             model = model_mod.CharBigram(
                 context_size=context_size,
                 vocab_size=tokenizer.vocab_size,
-            ).to(device)
+            )
         case settings.CharTransformer():
             tokenizer = tokenice.CharTokenizer.load(sample_settings.tokenizer_dir)
             model = model_mod.CharTransformer(
@@ -44,12 +46,12 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
                 embedding_size=model_settings.transformer_embedding_size,
                 ffw_projection_factor=model_settings.transformer_feedforward_projection_factor,
                 dropout=model_settings.transformer_dropout,
-            ).to(device)
+            )
         case settings.GPT2():
             tokenizer = tokenice.GPT2Tokenizer()
             if sample_settings.checkpoint is None:
                 logger.debug("loading pretrained gpt2 model")
-                model = model_mod.GPT2.from_pretrained("gpt2").to(device)
+                model = model_mod.GPT2.from_pretrained("gpt2")
             else:
                 model = model_mod.GPT2(
                     context_size=context_size,
@@ -58,9 +60,11 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
                     num_layers=model_settings.gpt2_num_layers,
                     num_heads=model_settings.gpt2_num_heads,
                     ffw_projection_factor=model_settings.gpt2_feedforward_projection_factor,
-                ).to(device)
+                )
         case _:
             assert_never(model_settings)
+
+    model.eval().to(device).compile()
 
     # load checkpoint
     if sample_settings.checkpoint is not None:
@@ -76,7 +80,6 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
                 raise TypeError(msg)
         model.load_state_dict(model_state_dict)
 
-    model.eval()
     # prepare initial context
     if sample_settings.prompt:
         logger.debug("using prompt: %s", sample_settings.prompt)
@@ -94,15 +97,16 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
     )
 
     # warmup cuda timing
-    if device == torch.device("cuda"):
-        torch.cuda.synchronize()
-
+    torch.cuda.synchronize(device) if device.type == "cuda" else None
     t0 = time.perf_counter()
 
     if sample_settings.stream:
         new_toks = 0
 
-        with torch.no_grad():
+        with (
+            torch.inference_mode(),
+            torch.autocast(device_type=device.type, dtype=torch.float16, enabled=sample_settings.use_mixed_precision),
+        ):
             for idx_next in model.generate_stream(
                 context,
                 max_new_tokens=sample_settings.tokens,
@@ -115,7 +119,10 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
                 new_toks += 1
 
     else:
-        with torch.no_grad():
+        with (
+            torch.inference_mode(),
+            torch.autocast(device_type=device.type, dtype=torch.float16, enabled=sample_settings.use_mixed_precision),
+        ):
             out = model.generate(
                 context,
                 max_new_tokens=sample_settings.tokens,
@@ -132,8 +139,7 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
     # final newline
     print()  # noqa: T201
 
-    if device == torch.device("cuda"):
-        torch.cuda.synchronize()
+    torch.cuda.synchronize(device) if device.type == "cuda" else None
 
     t1 = time.perf_counter()
     elapsed = t1 - t0

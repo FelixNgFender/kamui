@@ -18,6 +18,7 @@
   - [NLP from scratch PyTorch tutorial](https://docs.pytorch.org/tutorials/intermediate/nlp_from_scratch_index.html)
   - <https://karpathy.github.io/2015/05/21/rnn-effectiveness/>
   - <https://colah.github.io/posts/2015-08-Understanding-LSTMs/>
+- auto-encoders
 - diffusion
   - <https://poloclub.github.io/diffusion-explainer/>
 - transformer

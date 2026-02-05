@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-rsync -aPvz \
+rsync -aPv \
   --filter=":- .gitignore" \
   --timeout=300 \
   --protocol=31 \

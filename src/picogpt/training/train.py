@@ -1,6 +1,7 @@
-# ruff: noqa: S101, N806, PLR0915
+# ruff: noqa: N806, PLR0915
 import logging
 import random
+import time
 from typing import assert_never
 
 import torch
@@ -40,30 +41,40 @@ def train_lm(ctx: training.Context) -> None:
     size = len(ctx.train_loader.dataset)  # ty:ignore[invalid-argument-type]
     ctx.model.train()  # set train mode
     for batch, (X, y) in enumerate(ctx.train_loader):
+        t0 = time.perf_counter()
         X_d, y_d = X.to(ctx.device), y.to(ctx.device)
 
-        # forward
-        _, loss = ctx.model.calculate_loss(X_d, y_d)
+        ctx.optimizer.zero_grad()
+
+        # forward with automatic mixed precision
+        # bfloat16 does not require gradient scaling like float16 because
+        # it possesses a much wider dynamic range, matching that of float32
+        with torch.autocast(device_type=ctx.device.type, dtype=torch.bfloat16, enabled=ctx.use_mixed_precision):
+            loss = ctx.model.estimate_loss(X_d, y_d)
 
         # backprop
-        ctx.optimizer.zero_grad()
         loss.backward()
         ctx.optimizer.step()
+        torch.cuda.synchronize(ctx.device) if ctx.device.type == "cuda" else None
+        t1 = time.perf_counter()
+        dt = (t1 - t0) * 1000  # ms
+        tps = (ctx.train_loader.batch_size * X_d.shape[1]) / (t1 - t0)
 
         ctx.loss_history.append(loss.log10().item())
         if batch % 100 == 0:
             loss, current = loss.item(), (batch + 1) * len(X)
-            logger.info("avg loss: %.7f  [%d/%d]", loss, current, size)
+            logger.info("avg loss: %.7f  [%d/%d], dt: %.2fms, tok/sec: %.2f", loss, current, size, dt, tps)
 
 
 def test_lm(ctx: training.Context) -> float:
     num_batches = len(ctx.val_loader)
     ctx.model.eval()
     test_loss = 0
-    with torch.no_grad():
+    with torch.inference_mode():
         for _, (X, y) in enumerate(ctx.val_loader):
             X_d, y_d = X.to(ctx.device), y.to(ctx.device)
-            _, loss = ctx.model.calculate_loss(X_d, y_d)
+            with torch.autocast(device_type=ctx.device.type, dtype=torch.bfloat16, enabled=ctx.use_mixed_precision):
+                loss = ctx.model.estimate_loss(X_d, y_d)
             test_loss += loss.item()
     test_loss /= num_batches
     logger.info("avg loss: %.7f", test_loss)
@@ -80,12 +91,15 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
     # setup
     random.seed(train_settings.seed)
     torch.manual_seed(train_settings.torch_seed)
+    torch.cuda.manual_seed_all(train_settings.torch_seed)
+    # tells pytorch to use different kernels depending on precision
+    torch.set_float32_matmul_precision(train_settings.fp32_matmul_precision)
     device = (
         torch.accelerator.current_accelerator()
         if torch.accelerator.is_available() and train_settings.use_accelerator
         else torch.device("cpu")
     )
-    assert device is not None, "device cannot be None"
+    assert device is not None, "device cannot be None"  # noqa: S101
 
     # prepare model and dataset
     with train_settings.input_file.open("r", encoding="utf-8") as f:
@@ -94,7 +108,7 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
     match model_settings:
         case settings.CharBigram():
             tokenizer = tokenice.CharTokenizer.train([text])
-            model = model_mod.CharBigram(context_size=context_size, vocab_size=tokenizer.vocab_size).to(device)
+            model = model_mod.CharBigram(context_size=context_size, vocab_size=tokenizer.vocab_size)
         case settings.CharTransformer():
             tokenizer = tokenice.CharTokenizer.train([text])
             model = model_mod.CharTransformer(
@@ -105,7 +119,7 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
                 embedding_size=model_settings.transformer_embedding_size,
                 ffw_projection_factor=model_settings.transformer_feedforward_projection_factor,
                 dropout=model_settings.transformer_dropout,
-            ).to(device)
+            )
         case settings.GPT2():
             tokenizer = tokenice.GPT2Tokenizer()
             model = model_mod.GPT2(
@@ -115,10 +129,12 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
                 num_layers=model_settings.gpt2_num_layers,
                 num_heads=model_settings.gpt2_num_heads,
                 ffw_projection_factor=model_settings.gpt2_feedforward_projection_factor,
-            ).to(device)
+            )
         case _:
             assert_never(model_settings)
 
+    # move and then compile so compiler don't have to reason about device-specific copies
+    model.to(device).compile()
     optimizer = optim.AdamW(model.parameters(), lr=train_settings.learning_rate)
 
     n1 = int(train_settings.train_split * len(text))
@@ -149,6 +165,7 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
         train_loader=train_dataloader,
         val_loader=val_dataloader,
         checkpoint_dir=run_checkpoint_dir,
+        use_mixed_precision=train_settings.use_mixed_precision,
     )
 
     # load resume checkpoint if exists

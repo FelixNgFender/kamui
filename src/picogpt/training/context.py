@@ -26,6 +26,7 @@ class Context:
     checkpoint_dir: pathlib.Path
     epoch: int = 1
     loss_history: list[float] = dataclasses.field(default_factory=list)
+    use_mixed_precision: bool = True
 
     def checkpoint(
         self,
@@ -75,7 +76,7 @@ class Context:
         plt.close()
         logger.info("loss plot saved to %s", loss_path)
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def sample(self, tokens_to_generate: int, *, save_to_file: bool = False) -> None:
         context = torch.zeros((1, 1), dtype=torch.long, device=self.device)
         out = self.tokenizer.decode(self.model.generate(context, max_new_tokens=tokens_to_generate)[0].tolist())

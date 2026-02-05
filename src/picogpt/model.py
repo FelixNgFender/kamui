@@ -26,7 +26,7 @@ class LanguageModel(nn.Module):
         super().__init__()
         self.context_size = context_size
 
-    def calculate_loss(self, idx: torch.Tensor, targets: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def estimate_loss(self, idx: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         """idx and targets both have shape (B, T)"""
         logits = self(idx)
 
@@ -34,13 +34,9 @@ class LanguageModel(nn.Module):
         # instead of batch x time x channels, we group batch x time so the rows
         # become individual embeddings at each time step (essentially treating
         # them as individual examples)
-        logits = logits.flatten(0, 1)
         # corresponding with each embedding row is a single label index, so we
         # stretch out targets
-        targets = targets.flatten()
-        loss = F.cross_entropy(logits, targets)
-
-        return logits, loss
+        return F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
 
     def _sample_next(self, idx: torch.Tensor, temperature: float, top_k: int | None) -> torch.Tensor:
         # crop idx  to the last context_size tokens
@@ -236,7 +232,7 @@ class CharTransformer(LanguageModel):
 
         self.apply(self._init_weights)
 
-    @torch.no_grad
+    @torch.inference_mode()
     def _init_weights(self, module: nn.Module) -> None:
         if isinstance(module, nn.Linear):
             init.normal_(module.weight, mean=0.0, std=0.02)
@@ -270,6 +266,7 @@ class GPT2CausalSelfAttention(nn.Module):
         self.num_heads = num_heads
         # output project
         self.c_proj = nn.Linear(embedding_size, embedding_size)
+        self.c_proj.SCALE_INIT = 1  # ty:ignore[unresolved-attribute]
         self.register_buffer(
             "bias", torch.tril(torch.ones(context_size, context_size).view(1, 1, context_size, context_size))
         )
@@ -282,11 +279,20 @@ class GPT2CausalSelfAttention(nn.Module):
         x_q = x_q.view(B, T, self.num_heads, C // self.num_heads).transpose(-2, -3)  # (B, nh, T, hs)
         x_k = x_k.view(B, T, self.num_heads, C // self.num_heads).transpose(-2, -3)  # (B, nh, T, hs)
         x_v = x_v.view(B, T, self.num_heads, C // self.num_heads).transpose(-2, -3)  # (B, nh, T, hs)
-        # batched scaled dot-product attention
-        attn = x_q @ x_k.transpose(-2, -1) * x_k.size(-1) ** -0.5  # (B, nh, T, T)
-        attn = attn.masked_fill(self.bias[:, :, :T, :T] == 0, float("-inf"))  # ty:ignore[not-subscriptable]
-        attn = attn.softmax(dim=-1)
-        y = attn @ x_v  # (B, nh, T, hs)
+        # attention  (materializes a large (T, T) matrix for all queries and keys)
+        # ruff: disable[ERA001]
+        # attn = x_q @ x_k.transpose(-2, -1) * x_k.size(-1) ** -0.5  # (B, nh, T, T)
+        # attn = attn.masked_fill(self.bias[:, :, :T, :T] == 0, float("-inf"))
+        # attn = attn.softmax(dim=-1)
+        # y = attn @ x_v  # (B, nh, T, hs)
+        # ruff: enable[ERA001]
+        y = F.scaled_dot_product_attention(
+            x_q,
+            x_k,
+            x_v,
+            is_causal=True,
+        )  # (B, nh, T, hs)
+
         y = y.transpose(-2, -3).contiguous().view(B, T, C)  # re-assemble all head outputs side by side
         # output projection
         return self.c_proj(y)
@@ -299,6 +305,7 @@ class GPT2MLP(nn.Module):
         # GPT2 used tanh approx for being faster historically, not need in contemporary settings
         self.gelu = nn.GELU(approximate="tanh")
         self.c_proj = nn.Linear(out_features, in_features, bias=True)  # down projection
+        self.c_proj.SCALE_INIT = 1  # ty:ignore[unresolved-attribute]
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """x has shape (B, T, C)."""
@@ -340,6 +347,7 @@ class GPT2(LanguageModel):
     ) -> None:
         super().__init__(context_size)
         self.context_size = context_size
+        self.num_layers = num_layers
         self.transformer = nn.ModuleDict(
             {
                 # token embedding
@@ -354,6 +362,27 @@ class GPT2(LanguageModel):
             }
         )
         self.lm_head = nn.Linear(embedding_size, vocab_size, bias=False)
+
+        # weight sharing between token embedding and output projection
+        self.transformer.wte.weight = self.lm_head.weight  # ty:ignore[invalid-assignment]
+
+        # init params
+        self.apply(self._init_weights)
+
+    @torch.inference_mode()
+    def _init_weights(self, module: nn.Module) -> None:
+        """Mirror GPT-2 parameter initialization."""
+        if isinstance(module, nn.Linear):
+            std = 0.02
+            if hasattr(module, "SCALE_INIT"):
+                # the number of residual layers is num of gpt2 blocks times 2 because
+                # each block has two residual paths (attention and feedforward)
+                std *= (2 * self.num_layers) ** -0.5
+            init.normal_(module.weight, mean=0.0, std=std)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            init.normal_(module.weight, mean=0.0, std=0.02)
 
     @no_type_check
     def forward(self, idx: torch.Tensor) -> torch.Tensor:
@@ -409,7 +438,7 @@ class GPT2(LanguageModel):
             msg = "mismatch in number of state dict keys between HF and local model"
             raise ValueError(msg)
 
-        with torch.no_grad():
+        with torch.inference_mode():
             for k in sd_keys_hf:
                 if any(k.endswith(x) for x in transposed):
                     if sd_hf[k].shape[::-1] != sd[k].shape:
