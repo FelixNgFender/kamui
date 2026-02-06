@@ -39,6 +39,7 @@ GPT2_MAX_LR = 6e-4
 GPT2_MIN_LR = GPT2_MAX_LR * 0.1
 GPT2_WARMUP_STEPS = 10  # before decaying lr
 GPT2_MAX_STEPS = 50  # before returning min_lr
+GPT2_WEIGHT_DECAY = 0.1
 
 # sample during training
 TOKENS_TO_SAVE = 10000

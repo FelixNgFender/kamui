@@ -141,6 +141,10 @@ class GPT2(ModelBase):
         pydantic.PositiveInt,
         pydantic.Field(description="Maximum number of training steps before reaching minimum learning rate"),
     ] = constants.GPT2_MAX_STEPS
+    weight_decay: Annotated[
+        pydantic.NonNegativeFloat,
+        pydantic.Field(description="Weight decay for AdamW optimizer"),
+    ] = constants.GPT2_WEIGHT_DECAY
 
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 

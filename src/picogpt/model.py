@@ -1,5 +1,6 @@
 # ruff: noqa: N812, N806, PLR0913
 import enum
+import inspect
 import logging
 from collections.abc import Iterator
 from typing import Literal, no_type_check
@@ -7,7 +8,7 @@ from typing import Literal, no_type_check
 import torch
 import torch.nn.functional as F
 import transformers
-from torch import nn
+from torch import nn, optim
 from torch.nn import init
 
 logger = logging.getLogger(__name__)
@@ -454,3 +455,25 @@ class GPT2(LanguageModel):
                     sd[k].copy_(sd_hf[k])
 
         return model
+
+    def create_optimizer(self, weight_decay: float, lr: float, device: torch.device) -> optim.AdamW:
+        """Creates AdamW optimizer (fused if available) with parameter groups for weight decay."""
+        # start with all parameters that require gradients
+        param_dict: dict[str, nn.Parameter] = {pn: p for pn, p in self.named_parameters() if p.requires_grad}
+        # create optim groups. any 2d params will be decayed (weights and embeddings),
+        # all biases and layernorm won't
+        decay_params: list[nn.Parameter] = [p for pn, p in param_dict.items() if p.ndim >= 2]  # noqa: PLR2004
+        no_decay_params: list[nn.Parameter] = [p for pn, p in param_dict.items() if p.ndim < 2]  # noqa: PLR2004
+        optim_groups: list[dict[str, list[nn.Parameter] | float]] = [
+            {"params": decay_params, "weight_decay": weight_decay},
+            {"params": no_decay_params, "weight_decay": 0.0},
+        ]
+        num_decay_params = sum(p.numel() for p in decay_params)
+        num_no_decay_params = sum(p.numel() for p in no_decay_params)
+        logger.info("num decay param tensors: %d, with %d params", len(decay_params), num_decay_params)
+        logger.info("num no decay param tensors: %d, with %d params", len(no_decay_params), num_no_decay_params)
+        # create fused adamw optimizer if available
+        fused_available = "fused" in inspect.signature(optim.AdamW).parameters
+        use_fused = fused_available and device.type == "cuda"
+        logger.info("fused AdamW available: %s, using fused: %s", fused_available, use_fused)
+        return optim.AdamW(optim_groups, lr=lr, betas=(0.9, 0.95), eps=1e-8, fused=use_fused)

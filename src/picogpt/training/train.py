@@ -229,7 +229,7 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
                 ffw_projection_factor=model_settings.feedforward_projection_factor,
             )
             # follow gpt-3 hparams
-            optimizer = optim.AdamW(model.parameters(), lr=train_settings.learning_rate, betas=(0.9, 0.95), eps=1e-8)
+            optimizer = model.create_optimizer(model_settings.weight_decay, train_settings.learning_rate, device)
             # use custom train loop for gpt2
             train_lm = create_train_gpt2_loop(
                 model_settings.min_lr,
