@@ -36,7 +36,9 @@ class TrainCharTransformer(settings.Train, settings.CharTransformer):
         training.train(self, self)
 
 
-class TrainGPT2(settings.Train, settings.GPT2):
+# python's mro uses c3 linearization "first come first serve", so GPT2 must come first
+# to override any conflicting settings
+class TrainGPT2(settings.GPT2, settings.Train):
     """Trains the GPT2 (124M) model from OpenAI."""
 
     def cli_cmd(self) -> None:

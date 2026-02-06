@@ -39,13 +39,13 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
         case settings.CharTransformer():
             tokenizer = tokenice.CharTokenizer.load(sample_settings.tokenizer_dir)
             model = model_mod.CharTransformer(
-                num_blocks=model_settings.transformer_num_blocks,
-                num_heads=model_settings.transformer_num_heads,
+                num_blocks=model_settings.num_blocks,
+                num_heads=model_settings.num_heads,
                 context_size=context_size,
                 vocab_size=tokenizer.vocab_size,
-                embedding_size=model_settings.transformer_embedding_size,
-                ffw_projection_factor=model_settings.transformer_feedforward_projection_factor,
-                dropout=model_settings.transformer_dropout,
+                embedding_size=model_settings.embedding_size,
+                ffw_projection_factor=model_settings.feedforward_projection_factor,
+                dropout=model_settings.dropout,
             )
         case settings.GPT2():
             tokenizer = tokenice.GPT2Tokenizer()
@@ -56,11 +56,11 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
                 model = model_mod.GPT2(
                     context_size=context_size,
                     # don't use tokenizer.vocab_size for GPT2 cuz we want 50304 for cuda niceness
-                    vocab_size=model_settings.gpt2_vocab_size,
-                    embedding_size=model_settings.gpt2_embedding_size,
-                    num_layers=model_settings.gpt2_num_layers,
-                    num_heads=model_settings.gpt2_num_heads,
-                    ffw_projection_factor=model_settings.gpt2_feedforward_projection_factor,
+                    vocab_size=model_settings.vocab_size,
+                    embedding_size=model_settings.embedding_size,
+                    num_layers=model_settings.num_layers,
+                    num_heads=model_settings.num_heads,
+                    ffw_projection_factor=model_settings.feedforward_projection_factor,
                 )
         case _:
             assert_never(model_settings)

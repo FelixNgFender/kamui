@@ -19,6 +19,7 @@ BATCH_SIZE = 64  # the number of independent sequences to process at once
 LEARNING_RATE = 3e-4
 NUM_EPOCHS = 2
 CONTEXT_SIZE = 256  # the maximum length of predictions
+
 TRANSFORMER_EMBEDDING_SIZE = 384
 TRANSFORMER_NUM_HEADS = 6
 TRANSFORMER_NUM_BLOCKS = 6
@@ -31,6 +32,13 @@ GPT2_EMBEDDING_SIZE = 768
 GPT2_NUM_LAYERS = 12
 GPT2_NUM_HEADS = 12
 GPT2_FEEDFORWARD_PROJECTION_FACTOR = 4
+
+# gpt-2 specific training hparams
+GPT2_BATCH_SIZE = 16
+GPT2_MAX_LR = 6e-4
+GPT2_MIN_LR = GPT2_MAX_LR * 0.1
+GPT2_WARMUP_STEPS = 10  # before decaying lr
+GPT2_MAX_STEPS = 50  # before returning min_lr
 
 # sample during training
 TOKENS_TO_SAVE = 10000

@@ -47,6 +47,9 @@ lint.select = [
 lint.ignore = [
   "D",      # missing docstrings
   "COM812", # missing trailing comma, conflict with formatter
+  "TD002",  # missing TODO author
+  "TD003",  # missing issue link for this TODO
+  "FIX002", # fix TODOs
 ]
 # https://github.com/astral-sh/ruff-vscode/blob/main/README.md#configuring-vs-code
 lint.extend-select = ["I"]

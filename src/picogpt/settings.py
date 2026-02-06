@@ -65,23 +65,23 @@ class CharBigram(ModelBase):
 class CharTransformer(ModelBase):
     """Settings for creating a character-level transformer model."""
 
-    transformer_embedding_size: Annotated[
+    embedding_size: Annotated[
         pydantic.PositiveInt,
         pydantic.Field(description="Embedding size for the model"),
     ] = constants.TRANSFORMER_EMBEDDING_SIZE
-    transformer_num_blocks: Annotated[
+    num_blocks: Annotated[
         pydantic.PositiveInt,
         pydantic.Field(description="Number of transformer blocks"),
     ] = constants.TRANSFORMER_NUM_BLOCKS
-    transformer_num_heads: Annotated[
+    num_heads: Annotated[
         pydantic.PositiveInt,
         pydantic.Field(description="Number of transformer heads per layer"),
     ] = constants.TRANSFORMER_NUM_HEADS
-    transformer_feedforward_projection_factor: Annotated[
+    feedforward_projection_factor: Annotated[
         pydantic.PositiveInt,
         pydantic.Field(description="Transformer feedforward projection factor"),
     ] = constants.TRANSFORMER_FEEDFORWARD_PROJECTION_FACTOR
-    transformer_dropout: Annotated[
+    dropout: Annotated[
         float,
         pydantic.Field(ge=0.0, le=1.0, description="Transformer dropout rate"),
     ] = constants.TRANSFORMER_DROPOUT
@@ -92,31 +92,55 @@ class CharTransformer(ModelBase):
 class GPT2(ModelBase):
     """Settings for creating the GPT-2 (124M) model from OpenAI."""
 
-    # override
+    # override ModelBase
     context_size: Annotated[
         pydantic.PositiveInt,
         pydantic.Field(description="Context size for the model"),
     ] = constants.GPT2_CONTEXT_SIZE
-    gpt2_vocab_size: Annotated[
+    vocab_size: Annotated[
         pydantic.PositiveInt,
         pydantic.Field(description="Vocabulary size for the model"),
     ] = constants.GPT2_VOCAB_SIZE
-    gpt2_embedding_size: Annotated[
+    embedding_size: Annotated[
         pydantic.PositiveInt,
         pydantic.Field(description="Embedding size for the model"),
     ] = constants.GPT2_EMBEDDING_SIZE
-    gpt2_num_layers: Annotated[
+    num_layers: Annotated[
         pydantic.PositiveInt,
         pydantic.Field(description="Number of transformer layers"),
     ] = constants.GPT2_NUM_LAYERS
-    gpt2_num_heads: Annotated[
+    num_heads: Annotated[
         pydantic.PositiveInt,
         pydantic.Field(description="Number of transformer heads per layer"),
     ] = constants.GPT2_NUM_HEADS
-    gpt2_feedforward_projection_factor: Annotated[
+    feedforward_projection_factor: Annotated[
         pydantic.PositiveInt,
         pydantic.Field(description="Transformer feedforward projection factor"),
     ] = constants.GPT2_FEEDFORWARD_PROJECTION_FACTOR
+
+    # TODO: these overrides are very ugly cuz coupled training hparams to model hparams
+    # override Train when merged upstream in main.py
+    batch_size: Annotated[
+        pydantic.PositiveInt,
+        pydantic.Field(description="Batch size for the model"),
+    ] = constants.GPT2_BATCH_SIZE
+    # lr schedule
+    min_lr: Annotated[
+        pydantic.PositiveFloat,
+        pydantic.Field(description="Minimum learning rate to decay to for learning rate schedule"),
+    ] = constants.GPT2_MIN_LR
+    max_lr: Annotated[
+        pydantic.PositiveFloat,
+        pydantic.Field(description="Maximum learning rate for learning rate schedule"),
+    ] = constants.GPT2_MAX_LR
+    warmup_steps: Annotated[
+        pydantic.NonNegativeInt,
+        pydantic.Field(description="Number of linear warmup steps for learning rate schedule"),
+    ] = constants.GPT2_WARMUP_STEPS
+    max_steps: Annotated[
+        pydantic.PositiveInt,
+        pydantic.Field(description="Maximum number of training steps before reaching minimum learning rate"),
+    ] = constants.GPT2_MAX_STEPS
 
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
