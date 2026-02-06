@@ -1,4 +1,4 @@
-# ruff: noqa: N806, PLR0915, S101
+# ruff: noqa: N806, PLR0913,  PLR0915, S101
 import logging
 import math
 import random
@@ -97,7 +97,12 @@ def _get_lr(
 
 
 def create_train_gpt2_loop(
-    min_lr: float, max_lr: float, warm_up_steps: int, max_steps: int
+    min_lr: float,
+    max_lr: float,
+    warm_up_steps: int,
+    max_steps: int,
+    micro_batch_size: int,
+    grad_accumulation_steps: int,
 ) -> Callable[[training.Context], None]:
     """Custom train loop for GPT-2 model"""
 
@@ -106,16 +111,25 @@ def create_train_gpt2_loop(
         ctx.model.train()  # set train mode
         for batch, (X, y) in enumerate(ctx.train_loader):
             t0 = time.perf_counter()
-            X_d, y_d = X.to(ctx.device), y.to(ctx.device)
 
             ctx.optimizer.zero_grad()
 
-            # forward
-            with torch.autocast(device_type=ctx.device.type, dtype=torch.bfloat16, enabled=ctx.use_mixed_precision):
-                loss = ctx.model.estimate_loss(X_d, y_d)
+            total_loss = torch.tensor(0.0, device=ctx.device)
+            for micro_step in range(grad_accumulation_steps):
+                micro_start = micro_step * micro_batch_size
+                micro_end = micro_start + micro_batch_size
+                # move only micro batch to device
+                X_d, y_d = X[micro_start:micro_end].to(ctx.device), y[micro_start:micro_end].to(ctx.device)
 
-            # backprop
-            loss.backward()
+                # forward
+                with torch.autocast(device_type=ctx.device.type, dtype=torch.bfloat16, enabled=ctx.use_mixed_precision):
+                    loss = ctx.model.estimate_loss(X_d, y_d)
+                # scale loss for grad accumulation because cross entropy averages over batch size
+                # by default, but isn't aware of our micro batching
+                loss /= grad_accumulation_steps
+                total_loss += loss.detach()
+                # backprop
+                loss.backward()
 
             # grad clipping
             norm = nn.utils.clip_grad_norm_(ctx.model.parameters(), max_norm=1.0)
@@ -135,26 +149,26 @@ def create_train_gpt2_loop(
             for param_group in ctx.optimizer.param_groups:
                 param_group["lr"] = lr
 
+            # update only once per full batch, after all micro batches
             ctx.optimizer.step()
             torch.cuda.synchronize(ctx.device) if ctx.device.type == "cuda" else None
 
             t1 = time.perf_counter()
             dt = (t1 - t0) * 1000  # ms
-            tps = (ctx.train_loader.batch_size * X_d.shape[1]) / (t1 - t0)
+            tps = (ctx.train_loader.batch_size * X.shape[1]) / (t1 - t0)
 
-            ctx.loss_history.append(loss.log10().item())
-            if batch % 100 == 0:
-                loss, current = loss.item(), (batch + 1) * len(X)
-                logger.info(
-                    "[%7d/%7d] | loss: %.7f | lr: %.4e | norm: %.4f | dt: %6.2fms | tok/sec: %8.2f",
-                    current,
-                    size,
-                    loss,
-                    lr,
-                    norm,
-                    dt,
-                    tps,
-                )
+            ctx.loss_history.append(total_loss.log10().item())
+            loss, current = total_loss.item(), (batch + 1) * len(X)
+            logger.info(
+                "[%7d/%7d] | loss: %.7f | lr: %.4e | norm: %.4f | dt: %6.2fms | tok/sec: %8.2f",
+                current,
+                size,
+                loss,
+                lr,
+                norm,
+                dt,
+                tps,
+            )
 
     return train_gpt2
 
@@ -236,6 +250,13 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
                 model_settings.max_lr,
                 model_settings.warmup_steps,
                 model_settings.max_steps,
+                model_settings.micro_batch_size,
+                model_settings.grad_accumulation_steps,
+            )
+            logger.info(
+                "micro batch size: %d, calculated grad accumulation steps: %d",
+                model_settings.micro_batch_size,
+                model_settings.grad_accumulation_steps,
             )
         case _:
             assert_never(model_settings)

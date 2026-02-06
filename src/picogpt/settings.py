@@ -1,3 +1,4 @@
+import functools
 import pathlib
 from typing import Annotated, Literal
 
@@ -124,6 +125,24 @@ class GPT2(ModelBase):
         pydantic.PositiveInt,
         pydantic.Field(description="Batch size for the model"),
     ] = constants.GPT2_BATCH_SIZE
+    micro_batch_size: Annotated[
+        pydantic.PositiveInt,
+        pydantic.Field(description="Micro-batch size for gradient accumulation"),
+    ] = constants.GPT2_MICRO_BATCH_SIZE
+
+    @pydantic.model_validator(mode="after")
+    def validate_batch_sizes(self) -> "GPT2":
+        if self.batch_size % self.micro_batch_size != 0:
+            msg = f"total batch size {self.batch_size} must be divisible by micro-batch size {self.micro_batch_size}"
+            raise ValueError(msg)
+        return self
+
+    @pydantic.computed_field
+    @functools.cached_property
+    def grad_accumulation_steps(self) -> int:
+        """Number of training steps to accumulate gradients over."""
+        return self.batch_size // self.micro_batch_size
+
     # lr schedule
     min_lr: Annotated[
         pydantic.PositiveFloat,
