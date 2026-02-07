@@ -254,7 +254,7 @@ class CharTransformer(LanguageModel):
 
 
 class GPT2CausalSelfAttention(nn.Module):
-    def __init__(self, context_size: int, embedding_size: int, num_heads: int) -> None:
+    def __init__(self, embedding_size: int, num_heads: int) -> None:
         super().__init__()
         if embedding_size % num_heads != 0:
             msg = f"embedding_size {embedding_size} not divisible by num_heads {num_heads}"
@@ -268,9 +268,11 @@ class GPT2CausalSelfAttention(nn.Module):
         # output project
         self.c_proj = nn.Linear(embedding_size, embedding_size)
         self.c_proj.SCALE_INIT = 1  # ty:ignore[unresolved-attribute]
-        self.register_buffer(
-            "bias", torch.tril(torch.ones(context_size, context_size).view(1, 1, context_size, context_size))
-        )
+        # ruff: disable[ERA001]
+        # self.register_buffer(
+        #     "bias", torch.tril(torch.ones(context_size, context_size).view(1, 1, context_size, context_size))
+        # )
+        # ruff: enable[ERA001]
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """x has shape (B, T, C)."""
@@ -316,10 +318,10 @@ class GPT2MLP(nn.Module):
 
 
 class GPT2Block(nn.Module):
-    def __init__(self, context_size: int, embedding_size: int, num_heads: int, ffw_projection_factor: int) -> None:
+    def __init__(self, embedding_size: int, num_heads: int, ffw_projection_factor: int) -> None:
         super().__init__()
         self.ln_1 = nn.LayerNorm(embedding_size)
-        self.attn = GPT2CausalSelfAttention(context_size, embedding_size, num_heads)
+        self.attn = GPT2CausalSelfAttention(embedding_size, num_heads)
         self.ln_2 = nn.LayerNorm(embedding_size)
         self.mlp = GPT2MLP(embedding_size, ffw_projection_factor * embedding_size)
 
@@ -358,7 +360,7 @@ class GPT2(LanguageModel):
                 "wpe": nn.Embedding(context_size, embedding_dim=embedding_size),
                 # hidden
                 "h": nn.ModuleList(
-                    GPT2Block(context_size, embedding_size, num_heads, ffw_projection_factor) for _ in range(num_layers)
+                    GPT2Block(embedding_size, num_heads, ffw_projection_factor) for _ in range(num_layers)
                 ),
                 "ln_f": nn.LayerNorm(embedding_size),
             }

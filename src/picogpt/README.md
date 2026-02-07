@@ -12,7 +12,7 @@ simple (vocab_size, vocab_size) embedding matrix
 
 ### bigram loss curve
 
-![loss_curve_char_bigram](char_bigram_loss.png)
+![loss_curve_char_bigram](media/char_bigram_loss.png)
 
 ### bigram results
 
@@ -44,7 +44,7 @@ Yofth ll g's sed liset; i
 
 ### transformer loss curve
 
-![Transformer loss curve](char_transformer_loss.png)
+![Transformer loss curve](media/char_transformer_loss.png)
 
 ### transformer results
 
@@ -74,7 +74,8 @@ final val set avg loss (epoch=5): 3.3807906
 
 ## sampling with cli
 
-best weights-only checkpoints for both models are saved in [the weights directory](../../weights/). you can sample from them using the picogpt cli:
+best weights-only checkpoints for both models are saved in [the weights directory](../../weights/).
+you can sample from them using the picogpt cli:
 
 ```bash
 picogpt sample char-transformer --checkpoint weights/char_transformer/20260127_225553/best.pt --tokenizer-dir weights/char_tokenizer/20260127_225553/ --tokens 10000
@@ -102,6 +103,10 @@ if __name__ == "__main__":
         print(f"---------------------GENERATION {i + 1}----------------------")
         print(enc.decode(out[i].tolist()))
 ```
+
+## gpt2 results dump
+
+<!-- TODO: nice graphs -->
 
 ```txt
 RTX 3070 Mobile (B=2 due to low VRAM, T=1024)
