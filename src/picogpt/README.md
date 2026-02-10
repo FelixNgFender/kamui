@@ -81,29 +81,6 @@ you can sample from them using the picogpt cli:
 picogpt sample char-transformer --checkpoint weights/char_transformer/20260127_225553/best.pt --tokenizer-dir weights/char_tokenizer/20260127_225553/ --tokens 10000
 ```
 
-```python
-if __name__ == "__main__":
-    import tiktoken
-
-    starting_sentence = "Hello, I am Jojo"
-    num_return_sequences = 5
-    max_length = 3000
-    model = GPT2(1024, 50257, 768, 12, 12, 4).to("cuda")
-    # model = GPT2.from_pretrained("gpt2").to("cuda")
-    model.eval()
-    enc = tiktoken.get_encoding("gpt2")
-    tokens = (
-        torch.tensor(enc.encode(starting_sentence), device="cuda", dtype=torch.long)
-        .unsqueeze(0)
-        .repeat(num_return_sequences, 1)
-    )
-    with torch.inference_mode():
-        out = model.generate(tokens, max_new_tokens=100)
-    for i in range(num_return_sequences):
-        print(f"---------------------GENERATION {i + 1}----------------------")
-        print(enc.decode(out[i].tolist()))
-```
-
 ## gpt2 results dump
 
 <!-- TODO: nice graphs -->
@@ -284,4 +261,51 @@ baseline:
 [02/05/26 21:53:58] INFO     [   4096/ 300939] | loss: 8.0044508 | lr: 4.8000e-04 | norm: 2.4232 | dt: 7017.21ms | tok/sec: 74714.54
 [02/05/26 21:54:05] INFO     [   4608/ 300939] | loss: 7.6670609 | lr: 5.4000e-04 | norm: 2.1390 | dt: 7023.31ms | tok/sec: 74649.70
 [02/05/26 21:54:12] INFO     [   5120/ 300939] | loss: 7.3215528 | lr: 6.0000e-04 | norm: 1.8239 | dt: 7031.89ms | tok/sec: 74558.63
+```
+
+```shell
+# Single node, 2 GPUs
+torchrun --nproc_per_node=2 -m picogpt train gpt2
+
+# Single node, 4 GPUs
+torchrun --nproc_per_node=4 -m picogpt train gpt2
+
+# Multi-node (on each node)
+torchrun \
+    --nnodes=2 \
+    --nproc_per_node=4 \
+    --node_rank=<0 or 1> \
+    --master_addr=<master_ip> \
+    --master_port=29500 \
+    -m picogpt train gpt2
+
+    prefix+[ to enter copy mode
+    navigate to the start or the end of text selection with arrow keys
+    press space to to start selection, sometimes control+space
+    move to opposite end of text to copy with arrow keys
+    press return to copy selected text into tmux clipboard, sometimes control+w or esc+w or alt+w
+    in the same tmux session, paste with prefix+], to paste into vim, use prefix+] in vim insert mode
+```
+
+```python
+if __name__ == "__main__":
+    import tiktoken
+
+    starting_sentence = "Hello, I am Jojo"
+    num_return_sequences = 5
+    max_length = 3000
+    model = GPT2(1024, 50257, 768, 12, 12, 4).to("cuda")
+    # model = GPT2.from_pretrained("gpt2").to("cuda")
+    model.eval()
+    enc = tiktoken.get_encoding("gpt2")
+    tokens = (
+        torch.tensor(enc.encode(starting_sentence), device="cuda", dtype=torch.long)
+        .unsqueeze(0)
+        .repeat(num_return_sequences, 1)
+    )
+    with torch.inference_mode():
+        out = model.generate(tokens, max_new_tokens=100)
+    for i in range(num_return_sequences):
+        print(f"---------------------GENERATION {i + 1}----------------------")
+        print(enc.decode(out[i].tolist()))
 ```

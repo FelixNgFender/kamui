@@ -57,3 +57,6 @@ lint.per-file-ignores = { "test/*.py" = ["S101"] }
 
 [tool.ty.src]
 exclude = ["notebooks/micrograd/mnist.ipynb"]
+
+[tool.ty.rules]
+possibly-missing-attribute = "ignore" # https://github.com/astral-sh/ty/issues/2244

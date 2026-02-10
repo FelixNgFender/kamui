@@ -13,6 +13,12 @@ SEED = 42
 # https://docs.pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html
 FP32_MATMUL_PRECISION = "high"  # "highest", "high", "medium"
 USE_MIXED_PRECISION = True
+# ddp
+DDP_RANK = 0
+DDP_LOCAL_RANK = 0
+DDP_WORLD_SIZE = 1
+DDP_MASTER_ADDR = "localhost"
+DDP_MASTER_PORT = 12355
 
 # hyperparams
 BATCH_SIZE = 64  # the number of independent sequences to process at once

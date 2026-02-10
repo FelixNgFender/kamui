@@ -7,5 +7,4 @@ rsync -aPv \
   --partial \
   -e "ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=10 -o ConnectTimeout=60" \
   ~/workplaces/kamui/ \
-  root@141.0.85.200:/workspace/kamui
-# ssh -p 42423 root@141.0.85.200 -L 8080:localhost:8080
+  root@felix.vast.ai:/workspace/kamui

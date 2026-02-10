@@ -98,7 +98,9 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
     )
 
     # warmup cuda timing
-    torch.cuda.synchronize(device) if device.type == "cuda" else None
+    if device.type == "cuda":
+        torch.cuda.synchronize(device)
+
     t0 = time.perf_counter()
 
     if sample_settings.stream:
@@ -140,7 +142,8 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
     # final newline
     print()  # noqa: T201
 
-    torch.cuda.synchronize(device) if device.type == "cuda" else None
+    if device.type == "cuda":
+        torch.cuda.synchronize(device)
 
     t1 = time.perf_counter()
     elapsed = t1 - t0

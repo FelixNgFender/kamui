@@ -1,4 +1,5 @@
 import functools
+import os
 import pathlib
 from typing import Annotated, Literal
 
@@ -11,7 +12,9 @@ from picogpt import constants
 class Log(ps.BaseSettings):
     verbose: Annotated[
         ps.CliImplicitFlag[bool],
-        pydantic.Field(description="Logs extra debugging information"),
+        pydantic.Field(
+            validation_alias=pydantic.AliasChoices("v", "verbose"), description="Logs extra debugging information"
+        ),
     ] = False
 
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
@@ -33,6 +36,41 @@ class Device(ps.BaseSettings):
         ps.CliImplicitFlag[bool],
         pydantic.Field(description="Whether to use accelerator for training"),
     ] = constants.USE_ACCELERATOR
+
+
+class DDP(ps.BaseSettings):
+    """DDP settings auto-populated from environment variables set by torchrun."""
+
+    @pydantic.computed_field
+    @functools.cached_property[bool]
+    def enabled(self) -> bool:
+        """DDP is enabled when running with torchrun (RANK env var is set)."""
+        return "RANK" in os.environ
+
+    rank: Annotated[int, pydantic.Field(description="Global process rank. 0 for master process.")] = constants.DDP_RANK
+    local_rank: Annotated[
+        int,
+        pydantic.Field(description="Local process rank used for device assignment."),
+    ] = constants.DDP_LOCAL_RANK
+    world_size: Annotated[
+        int,
+        pydantic.Field(description="Total number of processes in the process group."),
+    ] = constants.DDP_WORLD_SIZE
+    master_addr: Annotated[
+        str,
+        pydantic.Field(description="Master node address for distributed training."),
+    ] = constants.DDP_MASTER_ADDR
+    master_port: Annotated[
+        int,
+        pydantic.Field(description="Master node port for distributed training."),
+    ] = constants.DDP_MASTER_PORT
+
+    @pydantic.computed_field
+    @functools.cached_property[bool]
+    def is_master_process(self) -> bool:
+        return self.rank == 0
+
+    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 class Precision(ps.BaseSettings):
@@ -137,12 +175,6 @@ class GPT2(ModelBase):
             raise ValueError(msg)
         return self
 
-    @pydantic.computed_field
-    @functools.cached_property
-    def grad_accumulation_steps(self) -> int:
-        """Number of training steps to accumulate gradients over."""
-        return self.batch_size // self.micro_batch_size
-
     # lr schedule
     min_lr: Annotated[
         pydantic.PositiveFloat,
@@ -214,6 +246,15 @@ class Train(Log, Seed, Device, Precision):
         pydantic.Field(description="Number of tokens to save to output file"),
     ] = constants.TOKENS_TO_SAVE
 
+    # ddp
+    ddp: Annotated[
+        DDP,
+        pydantic.Field(
+            description="Distributed data parallel settings for training. This is set automatically when running"
+            " with torchrun.",
+        ),
+    ] = DDP()
+
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
@@ -266,6 +307,7 @@ class Sample(Log, Seed, Device, Precision, ModelBase):
     prompt: Annotated[
         str | None,
         pydantic.Field(
+            validation_alias=pydantic.AliasChoices("p", "prompt"),
             description="Prompt text to start sampling from",
         ),
     ] = None
@@ -286,7 +328,10 @@ class Clean(Log):
     ] = constants.CHECKPOINT_DIR
     force: Annotated[
         ps.CliImplicitFlag[bool],
-        pydantic.Field(description="Force clean without user confirmation (DANGEROUS)"),
+        pydantic.Field(
+            validation_alias=pydantic.AliasChoices("f", "force"),
+            description="Force clean without user confirmation (DANGEROUS)",
+        ),
     ] = False
 
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")

@@ -1,4 +1,5 @@
 import logging
+import os
 import pathlib
 import shutil
 from typing import Annotated, ClassVar
@@ -14,11 +15,25 @@ logger = logging.getLogger(__name__)
 
 
 def configure_logging(log_settings: settings.Log) -> None:
+    class DDPRankFilter(logging.Filter):
+        """Only allows logs from rank 0 (master process) in DDP training."""
+
+        def filter(self, record: logging.LogRecord) -> bool:  # noqa: ARG002
+            rank = os.getenv("RANK") or os.getenv("LOCAL_RANK")
+            # not in ddp, allow all
+            if rank is None:
+                return True
+            # only allow logs from rank 0
+            return int(rank) == 0
+
     logging.basicConfig(
         level=logging.DEBUG if log_settings.verbose else logging.INFO,
         format="%(message)s",
         handlers=[rich.logging.RichHandler(rich_tracebacks=True)],
     )
+    # add rank filter to root logger handlers
+    for handler in logging.getLogger().handlers:
+        handler.addFilter(DDPRankFilter())
     logger.debug("running with settings %s", log_settings)
 
 

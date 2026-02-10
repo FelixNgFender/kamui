@@ -2,5 +2,6 @@
 rsync -aPvz \
   --exclude=".git" \
   --filter=":- .gitignore" \
-  root@141.0.85.200:/workspace/kamui \
+  -e "ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=10 -o ConnectTimeout=60" \
+  root@felix.vast.ai:/workspace/kamui \
   ~/workplaces/

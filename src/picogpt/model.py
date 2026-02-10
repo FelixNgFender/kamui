@@ -1,4 +1,5 @@
 # ruff: noqa: N812, N806, PLR0913
+import abc
 import enum
 import inspect
 import logging
@@ -20,29 +21,23 @@ class Type(enum.StrEnum):
     GPT2 = enum.auto()
 
 
-class LanguageModel(nn.Module):
+class LanguageModel(nn.Module, abc.ABC):
     TYPE: Type
 
     def __init__(self, context_size: int) -> None:
         super().__init__()
         self.context_size = context_size
 
-    def estimate_loss(self, idx: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    @abc.abstractmethod
+    def forward(
+        self, idx: torch.Tensor, targets: torch.Tensor | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """idx and targets both have shape (B, T)"""
-        logits = self(idx)
-
-        # batch size x time steps x channels/embeddings/features
-        # instead of batch x time x channels, we group batch x time so the rows
-        # become individual embeddings at each time step (essentially treating
-        # them as individual examples)
-        # corresponding with each embedding row is a single label index, so we
-        # stretch out targets
-        return F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
 
     def _sample_next(self, idx: torch.Tensor, temperature: float, top_k: int | None) -> torch.Tensor:
         # crop idx  to the last context_size tokens
         idx_cropped = idx[:, -self.context_size :]
-        logits = self(idx_cropped)  # (B, T, vocab_size)
+        logits, _ = self(idx_cropped)  # (B, T, vocab_size)
         # focus on the last timestep
         logits = logits[:, -1, :]  # (B, vocab_size)
         # apply temperature
@@ -101,9 +96,19 @@ class CharBigram(LanguageModel):
         super().__init__(context_size)
         self.embedding = nn.Embedding(vocab_size, vocab_size)
 
-    def forward(self, idx: torch.Tensor) -> torch.Tensor:
-        """idx has shape (B, T)"""
-        return self.embedding(idx)  # (B, T, vocab_size)
+    def forward(
+        self, idx: torch.Tensor, targets: torch.Tensor | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
+        logits = self.embedding(idx)  # (B, T, vocab_size)
+
+        # batch size x time steps x channels/embeddings/features
+        # instead of batch x time x channels, we group batch x time so the rows
+        # become individual embeddings at each time step (essentially treating
+        # them as individual examples)
+        # corresponding with each embedding row is a single label index, so we
+        # stretch out targets
+        loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1)) if targets is not None else None
+        return logits, loss
 
 
 class AttentionHead(nn.Module):
@@ -242,15 +247,18 @@ class CharTransformer(LanguageModel):
         elif isinstance(module, nn.Embedding):
             init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, idx: torch.Tensor) -> torch.Tensor:
-        """idx has shape (B, T)"""
+    def forward(
+        self, idx: torch.Tensor, targets: torch.Tensor | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
         _, T = idx.shape
         tok_embed = self.embed(idx)  # (B, T, embedding_size)
         pos_embed = self.pos_embed(torch.arange(T, dtype=torch.long, device=idx.device))  # (T, embedding_size)
         embeddings = tok_embed + pos_embed  # (B, T, embedding_size) broadcast over B
         embeddings = self.blocks(embeddings)  # (B, T, embedding_size)
         embeddings = self.ln_f(embeddings)  # (B, T, embedding_size)
-        return self.lm_head(embeddings)  # (B, T, vocab_size)
+        logits = self.lm_head(embeddings)  # (B, T, vocab_size)
+        loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1)) if targets is not None else None
+        return logits, loss
 
 
 class GPT2CausalSelfAttention(nn.Module):
@@ -389,8 +397,9 @@ class GPT2(LanguageModel):
             init.normal_(module.weight, mean=0.0, std=0.02)
 
     @no_type_check
-    def forward(self, idx: torch.Tensor) -> torch.Tensor:
-        """idx has shape (B, T)"""
+    def forward(
+        self, idx: torch.Tensor, targets: torch.Tensor | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
         _, T = idx.size()
         if self.context_size < T:
             msg = f"input sequence length {T} exceeds model context size {self.context_size}"
@@ -402,7 +411,9 @@ class GPT2(LanguageModel):
         for block in self.transformer.h:
             embeddings = block(embeddings)  # (B, T, C)
         embeddings = self.transformer.ln_f(embeddings)  # (B, T, C)
-        return self.lm_head(embeddings)  # (B, T, vocab_size)
+        logits = self.lm_head(embeddings)  # (B, T, vocab_size)
+        loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1)) if targets is not None else None
+        return logits, loss
 
     @classmethod
     def from_pretrained(cls, model_type: GPT2Type) -> "GPT2":
