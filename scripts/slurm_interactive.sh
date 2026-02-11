@@ -4,13 +4,13 @@
 
 set -euo pipefail
 
-PARTITION="${PARTITION:-academic}"
-ACCOUNT="${ACCOUNT:-ece341x}"
+PARTITION="${PARTITION:-short}"
+ACCOUNT="${ACCOUNT:-bislam}"
 TIME="${TIME:-02:00:00}"
-GPUS="${GPUS:-1}"
+GPUS="${GPUS:-2}"
 CPUS="${CPUS:-1}"
-MEM="${MEM:-8G}"
-# GPU_TYPE="${GPU_TYPE:-H200|H100|A100-80G|L40S|A100|V100}"
+MEM="${MEM:-16G}"
+GPU_TYPE="${GPU_TYPE:-H200|H100|A100-80G|A100}"
 
 echo "requesting interactive session..."
 echo "  partition: $PARTITION"
@@ -19,7 +19,9 @@ echo "  time:      $TIME"
 echo "  gpus:      $GPUS"
 echo "  cpus:      $CPUS"
 echo "  mem:       $MEM"
-# echo "  gpu type:  $GPU_TYPE"
+echo "  gpu type:  $GPU_TYPE"
+
+module load uv gcc python cuda
 
 srun --partition="$PARTITION" \
   --account="$ACCOUNT" \
@@ -27,5 +29,5 @@ srun --partition="$PARTITION" \
   --gres="gpu:$GPUS" \
   --cpus-per-task="$CPUS" \
   --mem="$MEM" \
+  -C "$GPU_TYPE" \
   --pty bash
-  # -C "$GPU_TYPE" \

@@ -56,14 +56,6 @@ class DDP(ps.BaseSettings):
         int,
         pydantic.Field(description="Total number of processes in the process group."),
     ] = constants.DDP_WORLD_SIZE
-    master_addr: Annotated[
-        str,
-        pydantic.Field(description="Master node address for distributed training."),
-    ] = constants.DDP_MASTER_ADDR
-    master_port: Annotated[
-        int,
-        pydantic.Field(description="Master node port for distributed training."),
-    ] = constants.DDP_MASTER_PORT
 
     @pydantic.computed_field
     @functools.cached_property[bool]
@@ -157,46 +149,6 @@ class GPT2(ModelBase):
         pydantic.Field(description="Transformer feedforward projection factor"),
     ] = constants.GPT2_FEEDFORWARD_PROJECTION_FACTOR
 
-    # TODO: these overrides are very ugly cuz coupled training hparams to model hparams
-    # override Train when merged upstream in main.py
-    batch_size: Annotated[
-        pydantic.PositiveInt,
-        pydantic.Field(description="Batch size for the model"),
-    ] = constants.GPT2_BATCH_SIZE
-    micro_batch_size: Annotated[
-        pydantic.PositiveInt,
-        pydantic.Field(description="Micro-batch size for gradient accumulation"),
-    ] = constants.GPT2_MICRO_BATCH_SIZE
-
-    @pydantic.model_validator(mode="after")
-    def validate_batch_sizes(self) -> "GPT2":
-        if self.batch_size % self.micro_batch_size != 0:
-            msg = f"total batch size {self.batch_size} must be divisible by micro-batch size {self.micro_batch_size}"
-            raise ValueError(msg)
-        return self
-
-    # lr schedule
-    min_lr: Annotated[
-        pydantic.PositiveFloat,
-        pydantic.Field(description="Minimum learning rate to decay to for learning rate schedule"),
-    ] = constants.GPT2_MIN_LR
-    max_lr: Annotated[
-        pydantic.PositiveFloat,
-        pydantic.Field(description="Maximum learning rate for learning rate schedule"),
-    ] = constants.GPT2_MAX_LR
-    warmup_steps: Annotated[
-        pydantic.NonNegativeInt,
-        pydantic.Field(description="Number of linear warmup steps for learning rate schedule"),
-    ] = constants.GPT2_WARMUP_STEPS
-    max_steps: Annotated[
-        pydantic.PositiveInt,
-        pydantic.Field(description="Maximum number of training steps before reaching minimum learning rate"),
-    ] = constants.GPT2_MAX_STEPS
-    weight_decay: Annotated[
-        pydantic.NonNegativeFloat,
-        pydantic.Field(description="Weight decay for AdamW optimizer"),
-    ] = constants.GPT2_WEIGHT_DECAY
-
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
@@ -209,7 +161,9 @@ class Train(Log, Seed, Device, Precision):
     # train settings
     input_file: Annotated[
         pathlib.Path,
-        pydantic.Field(description="Input text file for training"),
+        pydantic.Field(
+            validation_alias=pydantic.AliasChoices("i", "input_file"), description="Input text file for training"
+        ),
     ] = constants.INPUT_FILE
     train_split: Annotated[
         float,
@@ -258,35 +212,79 @@ class Train(Log, Seed, Device, Precision):
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
+class TrainGPT2(Train):
+    """Overrides and extends base Train class with GPT-2 specific training settings."""
+
+    # override Train
+    batch_size: Annotated[
+        pydantic.PositiveInt,
+        pydantic.Field(description="Batch size for the model"),
+    ] = constants.GPT2_BATCH_SIZE
+    micro_batch_size: Annotated[
+        pydantic.PositiveInt,
+        pydantic.Field(description="Micro-batch size for gradient accumulation"),
+    ] = constants.GPT2_MICRO_BATCH_SIZE
+
+    # lr schedule
+    min_lr: Annotated[
+        pydantic.PositiveFloat,
+        pydantic.Field(description="Minimum learning rate to decay to for learning rate schedule"),
+    ] = constants.GPT2_MIN_LR
+    max_lr: Annotated[
+        pydantic.PositiveFloat,
+        pydantic.Field(description="Maximum learning rate for learning rate schedule"),
+    ] = constants.GPT2_MAX_LR
+    warmup_steps: Annotated[
+        pydantic.NonNegativeInt,
+        pydantic.Field(description="Number of linear warmup steps for learning rate schedule"),
+    ] = constants.GPT2_WARMUP_STEPS
+    max_steps: Annotated[
+        pydantic.PositiveInt,
+        pydantic.Field(description="Maximum number of training steps before reaching minimum learning rate"),
+    ] = constants.GPT2_MAX_STEPS
+    weight_decay: Annotated[
+        pydantic.NonNegativeFloat,
+        pydantic.Field(description="Weight decay for AdamW optimizer"),
+    ] = constants.GPT2_WEIGHT_DECAY
+
+    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+
+
 class Convert(Log):
     """Settings for the `convert` CLI subcommand."""
 
     checkpoint: Annotated[
         pathlib.Path,
-        pydantic.Field(description="Model checkpoint to convert"),
+        pydantic.Field(
+            validation_alias=pydantic.AliasChoices("ckpt", "checkpoint"), description="Model checkpoint to convert"
+        ),
     ]
     output: Annotated[
         pathlib.Path,
-        pydantic.Field(description="Output model weights path"),
+        pydantic.Field(validation_alias=pydantic.AliasChoices("o", "output"), description="Output model weights path"),
     ]
 
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
-class Sample(Log, Seed, Device, Precision, ModelBase):
+class Sample(Log, Seed, Device, Precision):
     """Settings for the `sample` CLI subcommand."""
 
     checkpoint: Annotated[
         pathlib.Path,
-        pydantic.Field(description="Weights-only checkpoint to sample from"),
+        pydantic.Field(
+            validation_alias=pydantic.AliasChoices("ckpt", "checkpoint"),
+            description="Weights-only checkpoint to sample from",
+        ),
     ]
     tokenizer_dir: Annotated[
         pathlib.Path,
         pydantic.Field(description="Directory containing tokenizer config"),
     ]
-    tokens: Annotated[
+    n_tokens: Annotated[
         pydantic.PositiveInt,
         pydantic.Field(
+            validation_alias=pydantic.AliasChoices("n", "n_tokens"),
             description="Number of tokens to generate",
         ),
     ] = constants.SAMPLE_MAX_TOKENS

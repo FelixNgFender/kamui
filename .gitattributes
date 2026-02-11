@@ -1,2 +1,7 @@
 # exclude ipynb from github stats
 *.ipynb linguist-vendored
+
+# track model weights with Git LFS
+*.pt filter=lfs diff=lfs merge=lfs -text
+*.pth filter=lfs diff=lfs merge=lfs -text
+*.ckpt filter=lfs diff=lfs merge=lfs -text

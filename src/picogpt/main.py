@@ -1,8 +1,7 @@
 import logging
 import os
-import pathlib
 import shutil
-from typing import Annotated, ClassVar
+from typing import ClassVar
 
 import pydantic
 import pydantic_settings as ps
@@ -51,10 +50,24 @@ class TrainCharTransformer(settings.Train, settings.CharTransformer):
         training.train(self, self)
 
 
-# python's mro uses c3 linearization "first come first serve", so GPT2 must come first
-# to override any conflicting settings
-class TrainGPT2(settings.GPT2, settings.Train):
-    """Trains the GPT2 (124M) model from OpenAI."""
+class TrainGPT2(settings.GPT2, settings.TrainGPT2):
+    """Trains the GPT2 (124M) model from Felix Nguyen."""
+
+    @pydantic.model_validator(mode="after")
+    def validate_batch_sizes(self) -> "TrainGPT2":
+        batch_size = self.batch_size
+        world_size = self.ddp.world_size
+        if batch_size % world_size != 0:
+            msg = f"batch size {batch_size} must be divisible by world size {world_size}"
+            raise ValueError(msg)
+
+        rank_batch_size = batch_size // world_size
+        micro_batch_size = self.micro_batch_size
+        if rank_batch_size % micro_batch_size != 0:
+            msg = f"rank batch size {rank_batch_size} must be divisible by micro batch size {micro_batch_size}"
+            raise ValueError(msg)
+
+        return self
 
     def cli_cmd(self) -> None:
         training.train(self, self)
@@ -97,18 +110,24 @@ class SampleCharTransformer(settings.Sample, settings.CharTransformer):
         sample.sample(self, self)
 
 
-class SampleGPT2(settings.Sample, settings.GPT2):
+class SampleGPT2Pretrained(settings.Sample):
     """Samples the GPT2 (124M) model from OpenAI."""
 
-    # override
-    checkpoint: Annotated[
-        pathlib.Path | None,
-        pydantic.Field(
-            description="Weights-only checkpoint to sample from. If none, downloads and uses the pre-trained "
-            "GPT2 weights."
-        ),
-    ] = None
-    # override: GPT2 uses a built-in tokenizer
+    # override from Sample: downloads from HF
+    checkpoint: ClassVar[None] = None
+    # override from Sample: GPT2 uses a built-in tokenizer
+    tokenizer_dir: ClassVar[None] = None
+
+    def cli_cmd(self) -> None:
+        # use default GPT2 to typecheck, not gonna be used anyway
+        # when sampling pretrained
+        sample.sample(self, settings.GPT2())
+
+
+class SampleGPT2(settings.Sample, settings.GPT2):
+    """Samples the GPT2 (124M) model from Felix Nguyen."""
+
+    # override from Sample: GPT2 uses a built-in tokenizer
     tokenizer_dir: ClassVar[None] = None
 
     def cli_cmd(self) -> None:
@@ -120,6 +139,7 @@ class Sample(settings.Log):
 
     char_bigram: ps.CliSubCommand[SampleCharBigram]
     char_transformer: ps.CliSubCommand[SampleCharTransformer]
+    gpt2_pretrained: ps.CliSubCommand[SampleGPT2Pretrained]
     gpt2: ps.CliSubCommand[SampleGPT2]
 
     def cli_cmd(self) -> None:

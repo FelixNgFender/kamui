@@ -2,7 +2,6 @@
 import atexit
 import logging
 import math
-import os
 import random
 import time
 from collections.abc import Callable
@@ -137,6 +136,10 @@ def create_train_gpt2_loop(
                 # move only micro batch to device
                 X_d, y_d = X[micro_start:micro_end].to(ctx.device), y[micro_start:micro_end].to(ctx.device)
 
+                # when ddp, only sync gradients on the last micro step
+                if ctx.is_ddp:
+                    ctx.training_model.require_backward_grad_sync = micro_step == (grad_accumulation_steps - 1)  # ty:ignore[invalid-assignment]
+
                 # forward
                 with torch.autocast(device_type=ctx.device.type, dtype=torch.bfloat16, enabled=ctx.use_mixed_precision):
                     _, loss = ctx.training_model(X_d, y_d)
@@ -229,6 +232,8 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
         train_settings.ddp.local_rank,
         train_settings.ddp.world_size,
     )
+    # each rank processes a subset of the effective batch
+    rank_batch_size = batch_size // world_size
 
     # device
     if train_settings.ddp.enabled:
@@ -242,11 +247,6 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
 
         # init process group
         backend = dist.get_default_backend_for_device(device)
-        # environment variables which need to be
-        # set when using c10d's default "env"
-        # initialization mode.
-        os.environ["MASTER_ADDR"] = train_settings.ddp.master_addr
-        os.environ["MASTER_PORT"] = str(train_settings.ddp.master_port)
         dist.init_process_group(backend, rank=rank, world_size=world_size)
         # attach cleanup so we don't forget
         atexit.register(dist.destroy_process_group)
@@ -300,23 +300,24 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
                 num_heads=model_settings.num_heads,
                 ffw_projection_factor=model_settings.feedforward_projection_factor,
             )
+            assert isinstance(train_settings, settings.TrainGPT2), "train_settings must be TrainGPT2 when model is GPT2"
             # follow gpt-3 hparams
-            optimizer = model.create_optimizer(model_settings.weight_decay, train_settings.learning_rate, device)
+            optimizer = model.create_optimizer(train_settings.weight_decay, train_settings.learning_rate, device)
             # account for ddp
-            grad_accumulation_steps = batch_size // (model_settings.micro_batch_size * world_size)
+            grad_accumulation_steps = rank_batch_size // train_settings.micro_batch_size
             # use custom train loop for gpt2
             train_lm = create_train_gpt2_loop(
-                model_settings.min_lr,
-                model_settings.max_lr,
-                model_settings.warmup_steps,
-                model_settings.max_steps,
-                model_settings.micro_batch_size,
+                train_settings.min_lr,
+                train_settings.max_lr,
+                train_settings.warmup_steps,
+                train_settings.max_steps,
+                train_settings.micro_batch_size,
                 grad_accumulation_steps,
             )
             if train_settings.ddp.is_master_process:
                 logger.info(
                     "micro batch size: %d, calculated grad accumulation steps: %d",
-                    model_settings.micro_batch_size,
+                    train_settings.micro_batch_size,
                     grad_accumulation_steps,
                 )
         case _:
@@ -363,9 +364,19 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
         val_sampler = None
 
     train_dataloader = data_utils.DataLoader(
-        train_dataset, batch_size, shuffle=(train_sampler is None), sampler=train_sampler, pin_memory=True
+        train_dataset,
+        rank_batch_size,
+        shuffle=(train_sampler is None),
+        sampler=train_sampler,
+        pin_memory=True,
     )
-    val_dataloader = data_utils.DataLoader(val_dataset, batch_size, shuffle=False, sampler=val_sampler, pin_memory=True)
+    val_dataloader = data_utils.DataLoader(
+        val_dataset,
+        rank_batch_size,
+        shuffle=False,
+        sampler=val_sampler,
+        pin_memory=True,
+    )
 
     # create training context
     run_checkpoint_dir = train_settings.checkpoint_dir / model.TYPE / utils.get_current_datetime()
@@ -399,7 +410,8 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
         logger.info("dataset size: %d", len(train_dataset) + len(val_dataset))
         logger.info("train size: %d", len(train_dataset))
         logger.info("val size: %d", len(val_dataset))
-        logger.info("batch size: %d", ctx.train_loader.batch_size)
+        logger.info("global batch size: %d", batch_size)
+        logger.info("rank batch size: %d", ctx.train_loader.batch_size)
         logger.info("epoch: %d/%d", ctx.epoch, train_settings.num_epochs)
 
         logger.info("model type: %s", ctx.model.TYPE)

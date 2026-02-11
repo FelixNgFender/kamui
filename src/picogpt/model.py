@@ -12,6 +12,8 @@ import transformers
 from torch import nn, optim
 from torch.nn import init
 
+from picogpt import constants
+
 logger = logging.getLogger(__name__)
 
 
@@ -418,15 +420,11 @@ class GPT2(LanguageModel):
     @classmethod
     def from_pretrained(cls, model_type: GPT2Type) -> "GPT2":
         logger.info("loading weights from pretrained model %s", model_type)
-        config_args: dict[str, int] = {
-            "gpt2": {"num_layers": 12, "num_heads": 12, "embedding_size": 768},  # 124M params
-            "gpt2-medium": {"num_layers": 24, "num_heads": 16, "embedding_size": 1024},  # 350M params
-            "gpt2-large": {"num_layers": 36, "num_heads": 20, "embedding_size": 1280},  # 774M params
-            "gpt2-xl": {"num_layers": 48, "num_heads": 25, "embedding_size": 1600},  # 1558M params
-        }[model_type]
-        config_args["vocab_size"] = 50304  # share vocab size
-        config_args["context_size"] = 1024  # share context size
-        config_args["ffw_projection_factor"] = 4  # share feedforward projection factor
+        config_args = constants.GPT2_PRETRAINED_CONFIG[model_type]
+        # share vocab size, context size, and feedforward projection factor
+        config_args["vocab_size"] = constants.GPT2_PRETRAINED_VOCAB_SIZE
+        config_args["context_size"] = constants.GPT2_PRETRAINED_CONTEXT_SIZE
+        config_args["ffw_projection_factor"] = constants.GPT2_PRETRAINED_FFW_PROJECTION_FACTOR
         model = GPT2(
             context_size=config_args["context_size"],
             vocab_size=config_args["vocab_size"],

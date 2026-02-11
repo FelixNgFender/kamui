@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 rsync -aPv \
+  --exclude=".git" \
   --filter=":- .gitignore" \
   --timeout=300 \
   --protocol=31 \

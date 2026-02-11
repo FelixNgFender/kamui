@@ -17,8 +17,6 @@ USE_MIXED_PRECISION = True
 DDP_RANK = 0
 DDP_LOCAL_RANK = 0
 DDP_WORLD_SIZE = 1
-DDP_MASTER_ADDR = "localhost"
-DDP_MASTER_PORT = 12355
 
 # hyperparams
 BATCH_SIZE = 64  # the number of independent sequences to process at once
@@ -69,3 +67,14 @@ SAMPLE_OUTPUT_FILENAME = "sample.txt"
 SAMPLE_MAX_TOKENS = 500
 SAMPLE_TEMPERATURE = 1.0
 SAMPLE_TOP_K = 50
+
+# gpt2 pretrained
+GPT2_PRETRAINED_CONFIG: dict[str, dict[str, int]] = {
+    "gpt2": {"num_layers": 12, "num_heads": 12, "embedding_size": 768},  # 124M params
+    "gpt2-medium": {"num_layers": 24, "num_heads": 16, "embedding_size": 1024},  # 350M params
+    "gpt2-large": {"num_layers": 36, "num_heads": 20, "embedding_size": 1280},  # 774M params
+    "gpt2-xl": {"num_layers": 48, "num_heads": 25, "embedding_size": 1600},  # 1558M params
+}
+GPT2_PRETRAINED_VOCAB_SIZE = 50257
+GPT2_PRETRAINED_CONTEXT_SIZE = 1024
+GPT2_PRETRAINED_FFW_PROJECTION_FACTOR = 4

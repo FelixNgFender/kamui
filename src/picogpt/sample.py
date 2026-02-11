@@ -26,7 +26,7 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
     )
     assert device is not None, "device cannot be None"  # noqa: S101
 
-    context_size = sample_settings.context_size
+    context_size = model_settings.context_size
 
     # create model with correct architecture
     match model_settings:
@@ -92,7 +92,7 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
 
     logger.debug(
         "generating %d tokens with temperature %.2f (stream=%s)",
-        sample_settings.tokens,
+        sample_settings.n_tokens,
         sample_settings.temperature,
         sample_settings.stream,
     )
@@ -112,7 +112,7 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
         ):
             for idx_next in model.generate_stream(
                 context,
-                max_new_tokens=sample_settings.tokens,
+                max_new_tokens=sample_settings.n_tokens,
                 temperature=sample_settings.temperature,
             ):
                 tokens = idx_next[0].tolist()
@@ -128,7 +128,7 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
         ):
             out = model.generate(
                 context,
-                max_new_tokens=sample_settings.tokens,
+                max_new_tokens=sample_settings.n_tokens,
                 temperature=sample_settings.temperature,
                 top_k=sample_settings.top_k,
             )
