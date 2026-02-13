@@ -18,6 +18,8 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
 
     random.seed(sample_settings.seed)
     torch.manual_seed(sample_settings.torch_seed)
+    torch.cuda.manual_seed_all(sample_settings.torch_seed)
+    # tells pytorch to use different kernels depending on precision
     torch.set_float32_matmul_precision(sample_settings.fp32_matmul_precision)
     device = (
         torch.accelerator.current_accelerator()
@@ -50,7 +52,6 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
         case settings.GPT2():
             tokenizer = tokenice.GPT2Tokenizer()
             if sample_settings.checkpoint is None:
-                logger.debug("loading pretrained gpt2 model")
                 model = model_mod.GPT2.from_pretrained("gpt2")
             else:
                 model = model_mod.GPT2(
@@ -108,7 +109,7 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
 
         with (
             torch.inference_mode(),
-            torch.autocast(device_type=device.type, dtype=torch.float16, enabled=sample_settings.use_mixed_precision),
+            torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=sample_settings.use_mixed_precision),
         ):
             for idx_next in model.generate_stream(
                 context,
@@ -124,7 +125,7 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
     else:
         with (
             torch.inference_mode(),
-            torch.autocast(device_type=device.type, dtype=torch.float16, enabled=sample_settings.use_mixed_precision),
+            torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=sample_settings.use_mixed_precision),
         ):
             out = model.generate(
                 context,

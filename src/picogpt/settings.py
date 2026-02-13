@@ -38,6 +38,17 @@ class Device(ps.BaseSettings):
     ] = constants.USE_ACCELERATOR
 
 
+class Precision(ps.BaseSettings):
+    fp32_matmul_precision: Annotated[
+        Literal["highest", "high", "medium"],
+        pydantic.Field(description="FP32 matrix multiplication precision for PyTorch"),
+    ] = constants.FP32_MATMUL_PRECISION
+    use_mixed_precision: Annotated[
+        ps.CliImplicitFlag[bool],
+        pydantic.Field(description="Whether to use mixed precision for training and inference"),
+    ] = constants.USE_MIXED_PRECISION
+
+
 class DDP(ps.BaseSettings):
     """DDP settings auto-populated from environment variables set by torchrun."""
 
@@ -63,17 +74,6 @@ class DDP(ps.BaseSettings):
         return self.rank == 0
 
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
-
-
-class Precision(ps.BaseSettings):
-    fp32_matmul_precision: Annotated[
-        Literal["highest", "high", "medium"],
-        pydantic.Field(description="FP32 matrix multiplication precision for PyTorch"),
-    ] = constants.FP32_MATMUL_PRECISION
-    use_mixed_precision: Annotated[
-        ps.CliImplicitFlag[bool],
-        pydantic.Field(description="Whether to use mixed precision for training and inference"),
-    ] = constants.USE_MIXED_PRECISION
 
 
 class ModelBase(ps.BaseSettings):
@@ -118,6 +118,9 @@ class CharTransformer(ModelBase):
     ] = constants.TRANSFORMER_DROPOUT
 
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+
+
+GPT2Type = Literal["gpt2", "gpt2-medium", "gpt2-large", "gpt2-xl"]
 
 
 class GPT2(ModelBase):
@@ -281,7 +284,7 @@ class Sample(Log, Seed, Device, Precision):
         pathlib.Path,
         pydantic.Field(
             validation_alias=pydantic.AliasChoices("ckpt", "checkpoint"),
-            description="Weights-only checkpoint to sample from",
+            description="Full or weights-only checkpoint to sample from",
         ),
     ]
     tokenizer_dir: Annotated[
@@ -320,6 +323,27 @@ class Sample(Log, Seed, Device, Precision):
         ps.CliImplicitFlag[bool],
         pydantic.Field(description="Stream output tokens to console as they are generated"),
     ] = True
+
+    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+
+
+HellaSwagSplit = Literal["train", "val", "test"]
+
+
+class Evaluate(Log, Seed, Device, Precision):
+    """Settings for the `evaluate` CLI subcommand."""
+
+    checkpoint: Annotated[
+        pathlib.Path,
+        pydantic.Field(
+            validation_alias=pydantic.AliasChoices("ckpt", "checkpoint"),
+            description="Full or weights-only checkpoint to evaluate on",
+        ),
+    ]
+    split: Annotated[
+        HellaSwagSplit,
+        pydantic.Field(description="Dataset split to evaluate on"),
+    ] = "val"
 
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 

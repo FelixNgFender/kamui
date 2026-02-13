@@ -7,7 +7,9 @@ DATEFMT_STR = "%Y%m%d_%H%M%S"
 USE_ACCELERATOR = True
 TRAIN_SPLIT = 0.9
 VAL_SPLIT = 1.0 - TRAIN_SPLIT
-TINYSHAKESPEARE_PATH = pathlib.Path("data") / "tinyshakespeare.txt"
+DATA_DIR = pathlib.Path("data")
+TINYSHAKESPEARE_PATH = DATA_DIR / "tinyshakespeare.txt"
+HELLASWAG_DIR = DATA_DIR / "hellaswag"
 TORCH_SEED = 2147483647
 SEED = 42
 # https://docs.pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html

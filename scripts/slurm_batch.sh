@@ -24,6 +24,6 @@ export PYTHONUNBUFFERED=1
 
 uv sync
 source .venv/bin/activate
-uv run picogpt train gpt2 --num-epochs 1 --input.npy-shards data/fineweb_edu10B
+uv run torchrun --standalone --nproc_per_node=8 -m picogpt train gpt2 --num-epochs 1 --input.npy-shards data/fineweb_edu10B
 
 echo "done at $(date)"

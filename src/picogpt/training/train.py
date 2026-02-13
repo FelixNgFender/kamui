@@ -194,6 +194,42 @@ def test_lm(ctx: training.Context) -> float:
     return test_loss.item()
 
 
+def create_test_gpt2_loop(
+    micro_batch_size: int,
+    grad_accumulation_steps: int,
+) -> Callable[[training.Context], float]:
+
+    def test_gpt2(ctx: training.Context) -> float:
+        ctx.training_model.eval()
+        total_loss = torch.tensor(0.0, device=ctx.device)
+        num_batches = 0
+        with torch.inference_mode():
+            for _, (X, y) in enumerate(ctx.val_loader):
+                for micro_step in range(grad_accumulation_steps):
+                    micro_start = micro_step * micro_batch_size
+                    micro_end = micro_start + micro_batch_size
+                    X_d, y_d = X[micro_start:micro_end].to(ctx.device), y[micro_start:micro_end].to(ctx.device)
+
+                    with torch.autocast(
+                        device_type=ctx.device.type, dtype=torch.bfloat16, enabled=ctx.use_mixed_precision
+                    ):
+                        _, loss = ctx.training_model(X_d, y_d)
+
+                    loss /= grad_accumulation_steps
+                    total_loss += loss.detach()
+                num_batches += 1
+
+        total_loss /= num_batches
+        # aggregates losses across all replicas for correct metric
+        if ctx.is_ddp:
+            dist.all_reduce(total_loss, op=dist.ReduceOp.AVG)
+        if ctx.is_master_process:
+            logger.info("avg loss: %.7f", total_loss)
+        return total_loss.item()
+
+    return test_gpt2
+
+
 def train(train_settings: settings.Train, model_settings: settings.Model) -> None:
     # aliases
     batch_size = train_settings.batch_size
@@ -334,12 +370,16 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
             optimizer = model.create_optimizer(train_settings.weight_decay, train_settings.learning_rate, device)
             # account for ddp
             grad_accumulation_steps = rank_batch_size // train_settings.micro_batch_size
-            # use custom train loop for gpt2
+            # use custom train and test loop for gpt2 because of grad accum
             train_lm = create_train_gpt2_loop(
                 train_settings.min_lr,
                 train_settings.max_lr,
                 train_settings.warmup_steps,
                 train_settings.max_steps,
+                train_settings.micro_batch_size,
+                grad_accumulation_steps,
+            )
+            test_lm = create_test_gpt2_loop(
                 train_settings.micro_batch_size,
                 grad_accumulation_steps,
             )
@@ -401,6 +441,7 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
         ctx.load(train_settings.resume_from_checkpoint)
 
     if ctx.is_master_process:
+        logger.info("rank: %d, device: %s", ctx.rank, ctx.device)
         logger.info("global batch size: %d", batch_size)
         logger.info("rank batch size: %s", ctx.train_loader.batch_size)
         logger.info("epoch: %d/%d", ctx.epoch, train_settings.num_epochs)
@@ -418,8 +459,6 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
         logger.info("world size: %d", ctx.world_size)
         if ctx.is_ddp:
             logger.info("ddp backend: %s", dist.get_backend())
-
-    logger.info("rank: %d, device: %s", ctx.rank, ctx.device)
 
     start_epoch = ctx.epoch
     max_epochs = start_epoch + train_settings.num_epochs

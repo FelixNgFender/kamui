@@ -8,7 +8,7 @@ import pydantic_settings as ps
 import rich.logging
 import rich.prompt
 
-from picogpt import convert, model, sample, settings, training
+from picogpt import convert, evaluate, model, sample, settings, training
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +147,36 @@ class Sample(settings.Log):
         ps.CliApp.run_subcommand(self)
 
 
+class EvaluateGPT2Pretrained(settings.Evaluate):
+    """Evaluates the GPT2 (124M) model from OpenAI on HellaSwag."""
+
+    # override from Evaluate: downloads from HF
+    checkpoint: ClassVar[None] = None
+
+    def cli_cmd(self) -> None:
+        # use default GPT2 to typecheck, not gonna be used anyway
+        # when sampling pretrained
+        evaluate.evaluate(self, settings.GPT2())
+
+
+class EvaluateGPT2(settings.Evaluate, settings.GPT2):
+    """Evaluates the GPT2 (124M) model from Felix Nguyen on HellaSwag."""
+
+    def cli_cmd(self) -> None:
+        evaluate.evaluate(self, self)
+
+
+class Evaluate(settings.Log):
+    """Evaluates model on HellaSwag."""
+
+    gpt2_pretrained: ps.CliSubCommand[EvaluateGPT2Pretrained]
+    gpt2: ps.CliSubCommand[EvaluateGPT2]
+
+    def cli_cmd(self) -> None:
+        configure_logging(self)
+        ps.CliApp.run_subcommand(self)
+
+
 class Clean(settings.Clean):
     """Cleans training artifacts."""
 
@@ -178,6 +208,7 @@ class Command(
     train: ps.CliSubCommand[Train]
     sample: ps.CliSubCommand[Sample]
     convert: ps.CliSubCommand[Convert]
+    evaluate: ps.CliSubCommand[Evaluate]
     clean: ps.CliSubCommand[Clean]
 
     def cli_cmd(self) -> None:

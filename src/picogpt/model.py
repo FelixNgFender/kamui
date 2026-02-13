@@ -4,7 +4,7 @@ import enum
 import inspect
 import logging
 from collections.abc import Iterator
-from typing import Literal, no_type_check
+from typing import no_type_check
 
 import torch
 import torch.nn.functional as F
@@ -12,7 +12,7 @@ import transformers
 from torch import nn, optim
 from torch.nn import init
 
-from picogpt import constants
+from picogpt import constants, settings
 
 logger = logging.getLogger(__name__)
 
@@ -343,9 +343,6 @@ class GPT2Block(nn.Module):
         return x + self.mlp(self.ln_2(x))  # (B, T, C)
 
 
-GPT2Type = Literal["gpt2", "gpt2-medium", "gpt2-large", "gpt2-xl"]
-
-
 class GPT2(LanguageModel):
     TYPE = Type.GPT2
 
@@ -418,7 +415,7 @@ class GPT2(LanguageModel):
         return logits, loss
 
     @classmethod
-    def from_pretrained(cls, model_type: GPT2Type) -> "GPT2":
+    def from_pretrained(cls, model_type: settings.GPT2Type) -> "GPT2":
         logger.info("loading weights from pretrained model %s", model_type)
         config_args = constants.GPT2_PRETRAINED_CONFIG[model_type]
         # share vocab size, context size, and feedforward projection factor
