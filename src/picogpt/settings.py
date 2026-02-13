@@ -155,16 +155,29 @@ class GPT2(ModelBase):
 Model = CharBigram | CharTransformer | GPT2
 
 
+class Input(ps.CliMutuallyExclusiveGroup):
+    """Settings for input data. If none are specified, the tinyshakespeare text dataset is used."""
+
+    txt: Annotated[
+        pathlib.Path | None,
+        pydantic.Field(
+            description="Input text file for training",
+        ),
+    ] = None
+    npy_shards: Annotated[
+        pathlib.Path | None,
+        pydantic.Field(
+            description="Directory containing .npy shard files for training (shards should be named train_0.npy, "
+            "train_1.npy, val_0.npy, etc.)",
+        ),
+    ] = None
+
+
 class Train(Log, Seed, Device, Precision):
     """Settings for the `train` CLI subcommand."""
 
     # train settings
-    input_file: Annotated[
-        pathlib.Path,
-        pydantic.Field(
-            validation_alias=pydantic.AliasChoices("i", "input_file"), description="Input text file for training"
-        ),
-    ] = constants.INPUT_FILE
+    input: Input = Input(txt=constants.TINYSHAKESPEARE_PATH)
     train_split: Annotated[
         float,
         pydantic.Field(gt=0.0, lt=1.0, description="Proportion of data to use for training"),
@@ -201,13 +214,7 @@ class Train(Log, Seed, Device, Precision):
     ] = constants.TOKENS_TO_SAVE
 
     # ddp
-    ddp: Annotated[
-        DDP,
-        pydantic.Field(
-            description="Distributed data parallel settings for training. This is set automatically when running"
-            " with torchrun.",
-        ),
-    ] = DDP()
+    ddp: DDP = DDP()
 
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -299,7 +306,7 @@ class Sample(Log, Seed, Device, Precision):
     top_k: Annotated[
         pydantic.PositiveInt | None,
         pydantic.Field(
-            description="Number of top K tokens to consider for sampling (None = no top-k filtering)",
+            description="Number of top K tokens to consider for sampling. If none, no top-k filtering)",
         ),
     ] = constants.SAMPLE_TOP_K
     prompt: Annotated[

@@ -5,44 +5,19 @@ import math
 import random
 import time
 from collections.abc import Callable
-from typing import assert_never
 
 import torch
 import torch.distributed as dist
 import torch.utils.data as data_utils
 from torch import nn, optim
 
-from picogpt import constants, settings, tokenice, training, utils
+from picogpt import constants, dataset, settings, tokenice, training, utils
 from picogpt import model as model_mod
 
 logger = logging.getLogger(__name__)
 
 
-class PicoDataset(data_utils.Dataset):
-    def __init__(
-        self,
-        tokenizer: tokenice.Tokenizer,
-        text: str,
-        context_size: int,
-    ) -> None:
-        """Contexts and labels both have dims (batch_size, context_size) e.g.,
-        contexts[5, 6] will have the label at labels[5, 6]"""
-        self.context_size = context_size
-        data = torch.tensor(tokenizer.encode(text), dtype=torch.long)
-        # create all possible windows instead of skipping by context_size
-        idx = torch.arange(len(data) - self.context_size).view(-1, 1)
-        self.contexts = data[idx + torch.arange(self.context_size)]
-        self.labels = data[idx + torch.arange(self.context_size) + 1]
-
-    def __len__(self) -> int:
-        return len(self.contexts)
-
-    def __getitem__(self, idx: int | list[int] | torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:  # ty:ignore[invalid-method-override]
-        return self.contexts[idx], self.labels[idx]
-
-
 def train_lm(ctx: training.Context) -> None:
-    size = len(ctx.train_loader.dataset)  # ty:ignore[invalid-argument-type]
     # set train mode
     ctx.training_model.train()
     for batch, (X, y) in enumerate(ctx.train_loader):
@@ -81,9 +56,8 @@ def train_lm(ctx: training.Context) -> None:
             ctx.loss_history.append(loss)
             if batch % 100 == 0:
                 logger.info(
-                    "[%7d/%7d] | loss: %.7f | dt: %6.2fms | tok/sec: %8.2f",
-                    (batch + 1) * len(X),
-                    size,
+                    "step: %7d | loss: %.7f | dt: %6.2fms | tok/sec: %8.2f",
+                    batch + 1,
                     loss,
                     dt * 1000,
                     tps,
@@ -122,7 +96,6 @@ def create_train_gpt2_loop(
     """Custom train loop for GPT-2 model"""
 
     def train_gpt2(ctx: training.Context) -> None:
-        size = len(ctx.train_loader.dataset)  # ty:ignore[invalid-argument-type]
         ctx.training_model.train()  # set train mode
         for batch, (X, y) in enumerate(ctx.train_loader):
             t0 = time.perf_counter()
@@ -189,9 +162,8 @@ def create_train_gpt2_loop(
                 loss = total_loss.item()
                 ctx.loss_history.append(loss)
                 logger.info(
-                    "[%7d/%7d] | loss: %.7f | lr: %.4e | norm: %.4f | dt: %6.2fms | tok/sec: %8.2f",
-                    (batch + 1) * len(X),
-                    size,
+                    "step: %7d | loss: %.7f | lr: %.4e | norm: %.4f | dt: %6.2fms | tok/sec: %8.2f",
+                    batch + 1,
                     loss,
                     lr,
                     norm,
@@ -265,18 +237,76 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
     # tells pytorch to use different kernels depending on precision
     torch.set_float32_matmul_precision(train_settings.fp32_matmul_precision)
 
-    # prepare model and dataset
-    with train_settings.input_file.open("r", encoding="utf-8") as f:
-        text = f.read()
+    # prepare dataset and model
+    if train_settings.input.txt is not None:
+        with train_settings.input.txt.open("r", encoding="utf-8") as f:
+            text = f.read()
+        tokenizer = tokenice.CharTokenizer.train([text])
+        n1 = int(train_settings.train_split * len(text))
+        train_dataset = dataset.Text(
+            tokenizer,
+            text[:n1],
+            context_size,
+        )
+        val_dataset = dataset.Text(
+            tokenizer,
+            text[n1:],
+            context_size,
+        )
+
+        train_sampler = None
+        val_sampler = None
+        if train_settings.ddp.enabled:
+            # sampler is mutual exclusive with shuffle in dataloader, so we set shuffle to False
+            # and use sampler for shuffling
+            train_sampler = data_utils.DistributedSampler(
+                train_dataset, num_replicas=world_size, rank=rank, shuffle=True
+            )
+            val_sampler = data_utils.DistributedSampler(val_dataset, num_replicas=world_size, rank=rank, shuffle=False)
+
+        train_dataloader = data_utils.DataLoader(
+            train_dataset,
+            rank_batch_size,
+            shuffle=(train_sampler is None),
+            sampler=train_sampler,
+            pin_memory=True,
+        )
+        val_dataloader = data_utils.DataLoader(
+            val_dataset,
+            rank_batch_size,
+            sampler=val_sampler,
+            pin_memory=True,
+        )
+    elif train_settings.input.npy_shards is not None:
+        tokenizer = tokenice.GPT2Tokenizer()
+        train_dataset = dataset.ShardedNpy(
+            train_settings.input.npy_shards,
+            split="train",
+            context_size=context_size,
+            batch_size=rank_batch_size,
+            rank=rank,
+            world_size=world_size,
+        )
+        val_dataset = dataset.ShardedNpy(
+            train_settings.input.npy_shards,
+            split="val",
+            context_size=context_size,
+            batch_size=rank_batch_size,
+            rank=rank,
+            world_size=world_size,
+        )
+        train_dataloader = data_utils.DataLoader(train_dataset, batch_size=None, pin_memory=True)
+        val_dataloader = data_utils.DataLoader(val_dataset, batch_size=None, pin_memory=True)
+    else:
+        msg = "unreachable"
+        raise AssertionError(msg)
 
     match model_settings:
         case settings.CharBigram():
-            tokenizer = tokenice.CharTokenizer.train([text])
             vocab_size = tokenizer.vocab_size
             model = model_mod.CharBigram(context_size=context_size, vocab_size=vocab_size)
             optimizer = optim.AdamW(model.parameters(), lr=train_settings.learning_rate)
         case settings.CharTransformer():
-            tokenizer = tokenice.CharTokenizer.train([text])
             vocab_size = tokenizer.vocab_size
             model = model_mod.CharTransformer(
                 context_size=context_size,
@@ -289,7 +319,6 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
             )
             optimizer = optim.AdamW(model.parameters(), lr=train_settings.learning_rate)
         case settings.GPT2():
-            tokenizer = tokenice.GPT2Tokenizer()
             # don't use tokenizer.vocab_size for GPT2 cuz we want 50304 for cuda niceness
             vocab_size = model_settings.vocab_size
             model = model_mod.GPT2(
@@ -321,7 +350,8 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
                     grad_accumulation_steps,
                 )
         case _:
-            assert_never(model_settings)
+            msg = f"unsupported combination of input {train_settings.input} and model {type(model_settings).__name__}"
+            raise ValueError(msg)
 
     # move and then compile so compiler don't have to reason about device-specific copies
     model.to(device)
@@ -341,42 +371,6 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
             gradient_as_bucket_view=True,
         )
         ddp_model.compile()
-
-    n1 = int(train_settings.train_split * len(text))
-    train_dataset = PicoDataset(
-        tokenizer,
-        text[:n1],
-        context_size,
-    )
-    val_dataset = PicoDataset(
-        tokenizer,
-        text[n1:],
-        context_size,
-    )
-
-    if train_settings.ddp.enabled:
-        # sampler is mutual exclusive with shuffle in dataloader, so we set shuffle to False
-        # and use sampler for shuffling
-        train_sampler = data_utils.DistributedSampler(train_dataset, num_replicas=world_size, rank=rank, shuffle=True)
-        val_sampler = data_utils.DistributedSampler(val_dataset, num_replicas=world_size, rank=rank, shuffle=False)
-    else:
-        train_sampler = None
-        val_sampler = None
-
-    train_dataloader = data_utils.DataLoader(
-        train_dataset,
-        rank_batch_size,
-        shuffle=(train_sampler is None),
-        sampler=train_sampler,
-        pin_memory=True,
-    )
-    val_dataloader = data_utils.DataLoader(
-        val_dataset,
-        rank_batch_size,
-        shuffle=False,
-        sampler=val_sampler,
-        pin_memory=True,
-    )
 
     # create training context
     run_checkpoint_dir = train_settings.checkpoint_dir / model.TYPE / utils.get_current_datetime()
@@ -407,11 +401,8 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
         ctx.load(train_settings.resume_from_checkpoint)
 
     if ctx.is_master_process:
-        logger.info("dataset size: %d", len(train_dataset) + len(val_dataset))
-        logger.info("train size: %d", len(train_dataset))
-        logger.info("val size: %d", len(val_dataset))
         logger.info("global batch size: %d", batch_size)
-        logger.info("rank batch size: %d", ctx.train_loader.batch_size)
+        logger.info("rank batch size: %s", ctx.train_loader.batch_size)
         logger.info("epoch: %d/%d", ctx.epoch, train_settings.num_epochs)
 
         logger.info("model type: %s", ctx.model.TYPE)
@@ -438,8 +429,8 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
             logger.info("starting epoch %d/%d", epoch, max_epochs - 1)
 
         # shuffle data differently every epoch
-        if train_sampler is not None:
-            train_sampler.set_epoch(epoch)
+        if isinstance(ctx.train_loader.sampler, data_utils.DistributedSampler):
+            ctx.train_loader.sampler.set_epoch(epoch)
 
         train_lm(ctx)
         val_loss = test_lm(ctx)

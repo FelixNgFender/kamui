@@ -6,10 +6,10 @@ set -euo pipefail
 
 PARTITION="${PARTITION:-short}"
 ACCOUNT="${ACCOUNT:-bislam}"
-TIME="${TIME:-02:00:00}"
-GPUS="${GPUS:-2}"
-CPUS="${CPUS:-1}"
-MEM="${MEM:-16G}"
+TIME="${TIME:-00:15:00}"
+GPUS="${GPUS:-4}"
+CPUS="${CPUS:-4}"
+MEM="${MEM:-64G}"
 GPU_TYPE="${GPU_TYPE:-H200|H100|A100-80G|A100}"
 
 echo "requesting interactive session..."
