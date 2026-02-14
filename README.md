@@ -243,8 +243,8 @@ from huggingface; the custom model is trained from scratch on tinyshakespeare.
 
 ##### hellaswag evals
 
-+5.1% normalized accuracy improvement on hellaswag for the custom gpt2 trained
-on fineweb edu 10B compared to the pretrained gpt2. -2.39% behind gpt3 that is
++1.5% normalized accuracy improvement on hellaswag for the custom gpt2 trained
+on fineweb edu 10B compared to the pretrained gpt2. -2.69% behind gpt3 that is
 trained on 300B tokens of data with 175B parameters (compared to our 20B tokens
 and 124M parameters).
 
