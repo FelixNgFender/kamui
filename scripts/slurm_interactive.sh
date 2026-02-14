@@ -6,7 +6,7 @@ set -euo pipefail
 
 PARTITION="${PARTITION:-short}"
 ACCOUNT="${ACCOUNT:-bislam}"
-TIME="${TIME:-00:15:00}"
+TIME="${TIME:-04:00:00}"
 GPUS="${GPUS:-4}"
 CPUS="${CPUS:-4}"
 MEM="${MEM:-64G}"

@@ -1,6 +1,6 @@
 import torch
 
-from kamui.core import Value
+from pea.core import Value
 
 
 def test_sanity_check() -> None:

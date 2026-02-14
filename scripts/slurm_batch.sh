@@ -2,14 +2,15 @@
 #SBATCH -N 1
 #SBATCH -n 4
 #SBATCH --mem=64G
-#SBATCH -J "picogpt"
-#SBATCH -o logs/picogpt_%j.out
-#SBATCH -e logs/picogpt_%j.err
-#SBATCH -p short
-#SBATCH -A bislam
+#SBATCH -J "pealm"
+#SBATCH -o logs/pealm_%j.out
+#SBATCH -e logs/pealm_%j.err
+#SBATCH --partition=short
+#SBATCH --account=bislam
+#SBATCH --qos=normal
 #SBATCH -t 08:00:00
-#SBATCH --gres=gpu:8
-#SBATCH -C "H200|H100|A100-80G|A100"
+#SBATCH --gres=gpu:4
+#SBATCH --constraint="H200|H100|A100-80G|A100"
 
 set -euo pipefail
 
@@ -24,6 +25,6 @@ export PYTHONUNBUFFERED=1
 
 uv sync
 source .venv/bin/activate
-uv run torchrun --standalone --nproc_per_node=8 -m picogpt train gpt2 --num-epochs 1 --input.npy-shards data/fineweb_edu10B
+torchrun --standalone --nproc_per_node=4 -m pealm train gpt2 --input.npy-shards data/fineweb_edu10B --micro-batch-size 32 --save-every 5000 2>&1 | tee training.log
 
 echo "done at $(date)"

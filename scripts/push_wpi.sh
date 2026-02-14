@@ -6,5 +6,5 @@ rsync -aPv \
   --protocol=31 \
   --partial \
   -e "ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=10 -o ConnectTimeout=60" \
-  ~/workplaces/kamui/ \
-  tvnguyen@turing.wpi.edu:~/kamui
+  ~/workplaces/pea/ \
+  tvnguyen@turing.wpi.edu:~/pea

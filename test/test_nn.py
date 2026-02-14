@@ -1,7 +1,7 @@
 import pytest
 
-from kamui import nn
-from kamui.core import Value
+from pea import nn
+from pea.core import Value
 
 
 def test_softmax() -> None:

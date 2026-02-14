@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 rsync -aPvz \
   --exclude=".git" \
-  --filter=":- .gitignore" tvnguyen@turing.wpi.edu:~/kamui ~/workplaces/
+  --filter=":- .gitignore" tvnguyen@turing.wpi.edu:~/pea ~/workplaces/

@@ -1,7 +1,7 @@
 [project]
-name = "kamui"
+name = "pea"
 version = "0.1.0"
-description = "Add your description here"
+description = "kindergartener language models"
 readme = "README.md"
 authors = [{ name = "felixngfender", email = "ngthinh302@gmail.com" }]
 requires-python = ">=3.13"
@@ -36,7 +36,7 @@ dev = [
 ]
 
 [project.scripts]
-picogpt = "picogpt:main"
+pealm = "pealm:main"
 
 [tool.ruff]
 line-length = 120
