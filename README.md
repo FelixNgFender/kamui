@@ -70,6 +70,9 @@ pealm sample gpt2-pretrained
 
 # token-level gpt2 trained on tinyshakespeare
 pealm sample gpt2 --ckpt weights/gpt2/tinyshakespeare/20260210_183518/best.pt
+
+# token-level gpt2 trained on fineweb edu 10B
+pealm sample gpt2 --ckpt weights/gpt2/fineweb_edu10B/20260214_015722/best.pt
 ```
 
 ### distributed training
@@ -78,6 +81,9 @@ the train script supports distributed training with `torchrun`. you can specify
 the number of nodes and GPUs per node, and `torchrun` will handle the rest.
 
 ```bash
+# prepare fineweb_edu10B (one-time)
+uv run scripts/fineweb.py
+
 # single node, 2 GPUs
 torchrun --standalone --nproc_per_node=2 -m pealm train gpt2
 
@@ -100,6 +106,19 @@ watch -n 1 'nvidia-smi \
   echo && \
   nvidia-smi --query-compute-apps=gpu_uuid,pid,process_name,used_memory \
   --format=csv'
+```
+
+### evaluating on hellaswag
+
+```bash
+# prepare hellaswag data (one-time)
+uv run scripts/hellaswag.py
+
+# evaluate pretrained gpt2 on hellaswag
+pealm eval gpt2-pretrained
+
+# evaluate custom gpt2 trained on fineweb edu 10B on hellaswag
+pealm eval gpt2 --ckpt weights/gpt2/fineweb_edu10B/20260214_015722/best.pt
 ```
 
 ## results
@@ -192,7 +211,7 @@ this model is trained.
 
 ##### loss curve
 
-![Loss curve for GPT2 trained on fineweb edu 10B](./media/gpt2_fineweb_edu_10B_loss.png)
+![Loss curve for GPT2 trained on fineweb edu 10B](./media/gpt2_fineweb_edu10B_loss.png)
 
 ##### losses
 
@@ -214,7 +233,7 @@ best model at step 36500 with val loss 3.0227.
 
 ##### results
 
-[sampling at epoch 2](./media/gpt2_fineweb_edu_10B_sample.txt).
+[sampling at epoch 2](./media/gpt2_fineweb_edu10B_sample.txt).
 
 #### comparing to openai gpt2 and gpt3
 
