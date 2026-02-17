@@ -169,12 +169,12 @@ class MultiHeadAttention(nn.Module):
 class FeedForward(nn.Module):
     """a simple feed-forward network"""
 
-    def __init__(self, embedding_size: int, projection_factor: int, dropout: float) -> None:
+    def __init__(self, embedding_size: int, dropout: float) -> None:
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(embedding_size, projection_factor * embedding_size),
+            nn.Linear(embedding_size, constants.TRANSFORMER_FFW_PROJECTION_FACTOR * embedding_size),
             nn.ReLU(),
-            nn.Linear(projection_factor * embedding_size, embedding_size),
+            nn.Linear(constants.TRANSFORMER_FFW_PROJECTION_FACTOR * embedding_size, embedding_size),
             nn.Dropout(dropout),
         )
 
@@ -185,9 +185,7 @@ class FeedForward(nn.Module):
 class TransformerBlock(nn.Module):
     """a simple transfomer block: communication followed by computation, also a light touch of residual connections"""
 
-    def __init__(
-        self, *, context_size: int, num_heads: int, embedding_size: int, ffw_projection_factor: int, dropout: float
-    ) -> None:
+    def __init__(self, *, context_size: int, num_heads: int, embedding_size: int, dropout: float) -> None:
         super().__init__()
         head_size = embedding_size // num_heads
         self.sa = MultiHeadAttention(
@@ -197,7 +195,7 @@ class TransformerBlock(nn.Module):
             embedding_size=embedding_size,
             dropout=dropout,
         )
-        self.ffwd = FeedForward(embedding_size=embedding_size, projection_factor=ffw_projection_factor, dropout=dropout)
+        self.ffwd = FeedForward(embedding_size=embedding_size, dropout=dropout)
         self.ln1 = nn.LayerNorm(embedding_size)
         self.ln2 = nn.LayerNorm(embedding_size)
 
@@ -217,7 +215,6 @@ class CharTransformer(LanguageModel):
         embedding_size: int,
         num_blocks: int,
         num_heads: int,
-        ffw_projection_factor: int,
         dropout: float,
     ) -> None:
         super().__init__(context_size)
@@ -229,7 +226,6 @@ class CharTransformer(LanguageModel):
                     context_size=context_size,
                     num_heads=num_heads,
                     embedding_size=embedding_size,
-                    ffw_projection_factor=ffw_projection_factor,
                     dropout=dropout,
                 )
                 for _ in range(num_blocks)
@@ -328,12 +324,12 @@ class GPT2MLP(nn.Module):
 
 
 class GPT2Block(nn.Module):
-    def __init__(self, embedding_size: int, num_heads: int, ffw_projection_factor: int) -> None:
+    def __init__(self, embedding_size: int, num_heads: int) -> None:
         super().__init__()
         self.ln_1 = nn.LayerNorm(embedding_size)
         self.attn = GPT2CausalSelfAttention(embedding_size, num_heads)
         self.ln_2 = nn.LayerNorm(embedding_size)
-        self.mlp = GPT2MLP(embedding_size, ffw_projection_factor * embedding_size)
+        self.mlp = GPT2MLP(embedding_size, constants.TRANSFORMER_FFW_PROJECTION_FACTOR * embedding_size)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """x has shape (B, T, C)."""
@@ -353,7 +349,6 @@ class GPT2(LanguageModel):
         embedding_size: int,
         num_layers: int,
         num_heads: int,
-        ffw_projection_factor: int,
     ) -> None:
         super().__init__(context_size)
         self.vocab_size = vocab_size
@@ -366,9 +361,7 @@ class GPT2(LanguageModel):
                 # position embedding
                 "wpe": nn.Embedding(context_size, embedding_dim=embedding_size),
                 # hidden
-                "h": nn.ModuleList(
-                    GPT2Block(embedding_size, num_heads, ffw_projection_factor) for _ in range(num_layers)
-                ),
+                "h": nn.ModuleList(GPT2Block(embedding_size, num_heads) for _ in range(num_layers)),
                 "ln_f": nn.LayerNorm(embedding_size),
             }
         )
@@ -421,14 +414,12 @@ class GPT2(LanguageModel):
         # share vocab size, context size, and feedforward projection factor
         config_args["vocab_size"] = constants.GPT2_PRETRAINED_VOCAB_SIZE
         config_args["context_size"] = constants.GPT2_PRETRAINED_CONTEXT_SIZE
-        config_args["ffw_projection_factor"] = constants.GPT2_PRETRAINED_FFW_PROJECTION_FACTOR
         model = GPT2(
             context_size=config_args["context_size"],
             vocab_size=config_args["vocab_size"],
             embedding_size=config_args["embedding_size"],
             num_layers=config_args["num_layers"],
             num_heads=config_args["num_heads"],
-            ffw_projection_factor=config_args["ffw_projection_factor"],
         )
         sd = model.state_dict()
         sd_keys = list(filter(lambda k: not k.endswith(".attn.bias"), sd.keys()))  # discard buffer

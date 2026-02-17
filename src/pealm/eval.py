@@ -110,7 +110,6 @@ def evaluate(eval_settings: settings.Evaluate, model_settings: settings.Model) -
                     embedding_size=model_settings.embedding_size,
                     num_layers=model_settings.num_layers,
                     num_heads=model_settings.num_heads,
-                    ffw_projection_factor=model_settings.feedforward_projection_factor,
                 )
         case _:
             msg = f"unsupport model for evaluation: {type(model_settings).__name__}"

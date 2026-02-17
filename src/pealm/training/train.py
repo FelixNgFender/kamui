@@ -375,7 +375,6 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
                 embedding_size=model_settings.embedding_size,
                 num_blocks=model_settings.num_blocks,
                 num_heads=model_settings.num_heads,
-                ffw_projection_factor=model_settings.feedforward_projection_factor,
                 dropout=model_settings.dropout,
             )
             optimizer = optim.AdamW(model.parameters(), lr=train_settings.lr)
@@ -392,7 +391,6 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
                 embedding_size=model_settings.embedding_size,
                 num_layers=model_settings.num_layers,
                 num_heads=model_settings.num_heads,
-                ffw_projection_factor=model_settings.feedforward_projection_factor,
             )
             # follow gpt-3 hparams
             optimizer = model.create_optimizer(train_settings.weight_decay, train_settings.lr, device)

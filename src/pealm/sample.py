@@ -17,8 +17,9 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
         raise FileNotFoundError(msg)
 
     random.seed(sample_settings.seed)
-    torch.manual_seed(sample_settings.torch_seed)
-    torch.cuda.manual_seed_all(sample_settings.torch_seed)
+    if sample_settings.torch_seed is not None:
+        torch.manual_seed(sample_settings.torch_seed)
+        torch.cuda.manual_seed_all(sample_settings.torch_seed)
     # tells pytorch to use different kernels depending on precision
     torch.set_float32_matmul_precision(sample_settings.fp32_matmul_precision)
     device = (
@@ -46,7 +47,6 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
                 context_size=context_size,
                 vocab_size=tokenizer.vocab_size,
                 embedding_size=model_settings.embedding_size,
-                ffw_projection_factor=model_settings.feedforward_projection_factor,
                 dropout=model_settings.dropout,
             )
         case settings.GPT2():
@@ -61,7 +61,6 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
                     embedding_size=model_settings.embedding_size,
                     num_layers=model_settings.num_layers,
                     num_heads=model_settings.num_heads,
-                    ffw_projection_factor=model_settings.feedforward_projection_factor,
                 )
         case _:
             assert_never(model_settings)

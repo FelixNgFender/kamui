@@ -108,10 +108,6 @@ class CharTransformer(ModelBase):
         pydantic.PositiveInt,
         pydantic.Field(description="Number of transformer heads per layer"),
     ] = constants.TRANSFORMER_NUM_HEADS
-    feedforward_projection_factor: Annotated[
-        pydantic.PositiveInt,
-        pydantic.Field(description="Transformer feedforward projection factor"),
-    ] = constants.TRANSFORMER_FEEDFORWARD_PROJECTION_FACTOR
     dropout: Annotated[
         float,
         pydantic.Field(ge=0.0, le=1.0, description="Transformer dropout rate"),
@@ -147,10 +143,6 @@ class GPT2(ModelBase):
         pydantic.PositiveInt,
         pydantic.Field(description="Number of transformer heads per layer"),
     ] = constants.GPT2_NUM_HEADS
-    feedforward_projection_factor: Annotated[
-        pydantic.PositiveInt,
-        pydantic.Field(description="Transformer feedforward projection factor"),
-    ] = constants.GPT2_FEEDFORWARD_PROJECTION_FACTOR
 
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -281,8 +273,18 @@ class Convert(Log):
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
-class Sample(Log, Seed, Device, Precision):
+class Sample(Log, Device, Precision):
     """Settings for the `sample` CLI subcommand."""
+
+    # we don't want fixed seed for sampling but still have option
+    seed: Annotated[
+        int | None,
+        pydantic.Field(description="Random seed for Python"),
+    ] = None
+    torch_seed: Annotated[
+        int | None,
+        pydantic.Field(description="Random seed for PyTorch"),
+    ] = None
 
     checkpoint: Annotated[
         pathlib.Path,
