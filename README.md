@@ -63,22 +63,24 @@ best weights-only checkpoints for all models are saved in
 
 ```bash
 # character-level transformer trained on tinyshakespeare
-pealm sample char-transformer --ckpt weights/char_transformer/20260127_225553/best.pt --tokenizer-dir weights/char_tokenizer/20260127_225553/ -n 10000
+pealm sample char-transformer --ckpt weights/char_transformer/2026-01-27_22-55-53/best.pt --tokenizer-dir weights/char_tokenizer/2026-01-27_22-55-53/ -n 10000
 
 # pretrained gpt2 from openai
 pealm sample gpt2-pretrained
 
 # token-level gpt2 trained on tinyshakespeare
-pealm sample gpt2 --ckpt weights/gpt2/tinyshakespeare/20260210_183518/best.pt
+pealm sample gpt2 --ckpt weights/gpt2/tinyshakespeare/2026-02-10_18-35-18/best.pt
 
 # token-level gpt2 trained on fineweb edu 10B
-pealm sample gpt2 --ckpt weights/gpt2/fineweb_edu10B/20260214_015722/best.pt
+pealm sample gpt2 --ckpt weights/gpt2/fineweb_edu10B/2026-02-14_01-57-22/best.pt
 ```
 
 ### distributed training
 
 the train script supports distributed training with `torchrun`. you can specify
 the number of nodes and GPUs per node, and `torchrun` will handle the rest.
+
+#### GPT2 ddp training
 
 ```bash
 # prepare fineweb_edu10B (one-time)
@@ -118,7 +120,7 @@ uv run scripts/hellaswag.py
 pealm eval gpt2-pretrained
 
 # evaluate custom gpt2 trained on fineweb edu 10B on hellaswag
-pealm eval gpt2 --ckpt weights/gpt2/fineweb_edu10B/20260214_015722/best.pt
+pealm eval gpt2 --ckpt weights/gpt2/fineweb_edu10B/2026-02-14_01-57-22/best.pt
 ```
 
 ## results

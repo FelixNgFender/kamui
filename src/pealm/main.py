@@ -8,7 +8,7 @@ import pydantic_settings as ps
 import rich.logging
 import rich.prompt
 
-from pealm import convert, model, sample, settings, training
+from pealm import convert, model, report, sample, settings, training
 from pealm import eval as eval_mod
 
 logger = logging.getLogger(__name__)
@@ -178,6 +178,31 @@ class Eval(settings.Log):
         ps.CliApp.run_subcommand(self)
 
 
+class ReportGenerate(settings.Report):
+    """Generates the final report."""
+
+    def cli_cmd(self) -> None:
+        report.DDPReport(self).generate()
+
+
+class ReportReset(settings.Report):
+    """Resets the final report."""
+
+    def cli_cmd(self) -> None:
+        report.DDPReport(self).reset()
+
+
+class Report(settings.Log):
+    """Generate or reset ChatGPT2 training reports."""
+
+    generate: ps.CliSubCommand[ReportGenerate]
+    reset: ps.CliSubCommand[ReportReset]
+
+    def cli_cmd(self) -> None:
+        configure_logging(self)
+        ps.CliApp.run_subcommand(self)
+
+
 class Clean(settings.Clean):
     """Cleans training artifacts."""
 
@@ -210,6 +235,7 @@ class Command(
     sample: ps.CliSubCommand[Sample]
     convert: ps.CliSubCommand[Convert]
     eval: ps.CliSubCommand[Eval]
+    report: ps.CliSubCommand[Report]
     clean: ps.CliSubCommand[Clean]
 
     def cli_cmd(self) -> None:

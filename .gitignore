@@ -19,3 +19,5 @@ runs/
 logs/
 checkpoints/
 data/hellaswag
+data/identity_conversations.jsonl
+chatgpt2/

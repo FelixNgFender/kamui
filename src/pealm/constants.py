@@ -1,7 +1,8 @@
 import pathlib
 
 # general
-DATEFMT_STR = "%Y%m%d_%H%M%S"
+DATEFMT_STR_HUMAN = "%Y-%m-%d %H:%M:%S"
+DATEFMT_STR = "%Y-%m-%d_%H:%M:%S"
 
 # training settings
 USE_ACCELERATOR = True
@@ -80,3 +81,6 @@ GPT2_PRETRAINED_CONFIG: dict[str, dict[str, int]] = {
 }
 GPT2_PRETRAINED_VOCAB_SIZE = 50257
 GPT2_PRETRAINED_CONTEXT_SIZE = 1024
+
+CHATGPT2_BASE_DIR = pathlib.Path("chatgpt2")
+CHATGPT2_REPORT_DIR = CHATGPT2_BASE_DIR / "report"

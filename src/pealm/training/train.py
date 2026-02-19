@@ -433,7 +433,7 @@ def train(train_settings: settings.Train, model_settings: settings.Model) -> Non
         ddp_model.compile()
 
     # create training context
-    run_checkpoint_dir = train_settings.checkpoint_dir / model.TYPE / utils.get_current_datetime()
+    run_checkpoint_dir = train_settings.checkpoint_dir / model.TYPE / utils.current_dt()
     if train_settings.ddp.is_master_process:
         run_checkpoint_dir.mkdir(parents=True, exist_ok=True)
         tokenizer.save(run_checkpoint_dir / constants.TOKENIZER_DIR)
