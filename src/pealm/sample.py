@@ -69,16 +69,7 @@ def sample(sample_settings: settings.Sample, model_settings: settings.Model) -> 
 
     # load checkpoint
     if sample_settings.checkpoint is not None:
-        logger.debug("loading checkpoint from %s", sample_settings.checkpoint)
-        with torch.serialization.safe_globals([training.Checkpoint, model_mod.Type]):
-            checkpoint = torch.load(sample_settings.checkpoint, map_location=device, weights_only=True)
-            if isinstance(checkpoint, training.Checkpoint):
-                model_state_dict = checkpoint.model_state_dict
-            elif isinstance(checkpoint, dict):
-                model_state_dict = checkpoint
-            else:
-                msg = f"unsupported checkpoint type: {type(checkpoint)}"
-                raise TypeError(msg)
+        model_state_dict = training.Checkpoint.load_weights(sample_settings.checkpoint, map_location=device)
         model.load_state_dict(model_state_dict)
 
     # prepare initial context

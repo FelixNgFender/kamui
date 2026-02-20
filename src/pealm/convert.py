@@ -21,14 +21,8 @@ def ckpt_to_weights(
         msg = f"checkpoint not found: {checkpoint_path}"
         raise FileNotFoundError(msg)
 
-    checkpoint = torch.load(
-        checkpoint_path,
-        map_location=torch.device("cpu"),
-        weights_only=False,
-    )
-    if not isinstance(checkpoint, training.Checkpoint):
-        msg = f"expected Checkpoint instance, got {type(checkpoint)}"
-        raise TypeError(msg)
+    # load full checkpoint
+    checkpoint = training.Checkpoint.load(checkpoint_path, map_location=torch.device("cpu"))
 
     # save weights only
     output_path.parent.mkdir(parents=True, exist_ok=True)

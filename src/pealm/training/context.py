@@ -75,13 +75,10 @@ class Context:
 
     def load(
         self,
-        checkpoint_path: pathlib.Path,
+        ckpt: pathlib.Path,
     ) -> None:
         """Load part of the training context from the checkpoint."""
-        checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=False)
-        if not isinstance(checkpoint, training.Checkpoint):
-            msg = f"invalid checkpoint format: {type(checkpoint)}"
-            raise TypeError(msg)
+        checkpoint = training.Checkpoint.load(ckpt, map_location=self.device)
         if models.Type(checkpoint.model_type) != self.model.TYPE:
             msg = f"checkpoint model type {checkpoint.model_type} does not match current model type {self.model.TYPE}"
             raise ValueError(msg)
@@ -91,7 +88,7 @@ class Context:
         self.train_loss = checkpoint.train_loss
         self.val_loss = checkpoint.val_loss
         self.step = checkpoint.step + 1  # start at the next step after the checkpoint
-        logger.info("checkpoint loaded from %s (step %d)", checkpoint_path, checkpoint.step)
+        logger.info("checkpoint loaded from %s (step %d)", ckpt, checkpoint.step)
 
         # ensure all ranks finish loading
         if self.is_ddp:
