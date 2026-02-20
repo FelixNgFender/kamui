@@ -1,6 +1,6 @@
 # ruff: noqa: PLR2004, C901, PLR0912, PLR0915
 """
-Utilities for generating ChatGPT 2 training report cards.
+Utilities for generating Peashooter training report cards.
 """
 
 import contextlib
@@ -18,7 +18,7 @@ import subprocess
 import psutil
 import torch
 
-from pealm import settings, utils
+from pealm import constants, settings, utils
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +140,7 @@ def generate_header() -> str:
     sys_info = get_system_info()
     cost_info = estimate_cost(gpu_info) if gpu_info else None
 
-    header = f"""# pealm chatgpt2 training report
+    header = f"""# peashooter training report
 
 Generated: {timestamp}
 
@@ -219,27 +219,6 @@ def slugify(text: str) -> str:
     return text.lower().replace(" ", "-")
 
 
-# the expected files and their order
-EXPECTED_FILES: list[str] = [
-    "tokenizer-training.md",
-    "tokenizer-evaluation.md",
-    "base-model-training.md",
-    "base-model-loss.md",
-    "base-model-evaluation.md",
-    "chat-sft.md",
-    "chat-evaluation-sft.md",
-    "chat-rl.md",
-    "chat-evaluation-rl.md",
-]
-# the metrics we're currently interested in
-# ARC: grade school level, multiple-choice science questions
-# MMLU: Massive Multitask Language Understanding, 57 subjects from STEM to humanities
-# GSM8k: 8.5K high school level math word problems, requires multi-step reasoning
-# HumanEval: 164 hand-written programming problems, requires writing code and passing test cases
-# ChatCORE: custom chat eval metric in nanochat that aggregates perf across main chat eval tasks
-chat_metrics = ["ARC-Easy", "ARC-Challenge", "MMLU", "GSM8K", "HumanEval", "ChatCORE"]
-
-
 def extract(section: str, keys: list[str] | str) -> dict:
     """simple def to extract a single key from a section"""
     if not isinstance(keys, list):
@@ -298,14 +277,14 @@ class Report:
     def generate(self) -> None:
         """Generate the final report."""
         report_dir = self.report_dir
-        report_file = report_dir / "report.md"
+        report_file = report_dir / constants.PS_REPORT_FILENAME
         logger.info("generating report to %s", report_file)
         final_metrics = {}  # the most important final metrics we'll add as table at the end
         start_time = None
         end_time = None
         with report_file.open("w", encoding="utf-8") as out_file:
             # write the header first
-            header_file = report_dir / "header.md"
+            header_file = report_dir / constants.PS_REPORT_HEADER_FILENAME
             if header_file.exists():
                 with header_file.open("r", encoding="utf-8") as f:
                     header_content = f.read()
@@ -319,7 +298,7 @@ class Report:
                 bloat_data = "[bloat data missing]"
                 logger.warning("%s does not exist, did you forget to run `pealm report reset`?", header_file)
             # process all the individual sections
-            for file_name in EXPECTED_FILES:
+            for file_name in constants.PS_REPORTS:
                 section_file = report_dir / file_name
                 if not section_file.exists():
                     logger.warning("%s does not exist, skipping", section_file)
@@ -334,7 +313,7 @@ class Report:
                 if file_name == "base-model-evaluation.md":
                     final_metrics["base"] = extract(section, "CORE")
                 if file_name == "chat-evaluation-sft.md":
-                    final_metrics["sft"] = extract(section, chat_metrics)
+                    final_metrics["sft"] = extract(section, constants.PS_CHAT_METRICS)
                 if file_name == "chat-evaluation-rl.md":
                     final_metrics["rl"] = extract(section, "GSM8K")  # RL only evals GSM8K
                 # append this section of the report
@@ -382,23 +361,23 @@ class Report:
                 out_file.write(f"Total wall clock time: {hours}h{minutes}m\n")
             else:
                 out_file.write("Total wall clock time: unknown\n")
-        # also cp the report.md file to current directory
+        # also cp the report file to current directory
         logger.info("copying report to current directory for convenience")
-        shutil.copy(report_file, "report.md")
+        shutil.copy(report_file, constants.PS_REPORT_FILENAME)
 
     def reset(self) -> None:
         """Reset the report."""
         # remove section files
-        for file_name in EXPECTED_FILES:
+        for file_name in constants.PS_REPORTS:
             file_path = self.report_dir / file_name
             if file_path.exists():
                 file_path.unlink()
-        # Remove report.md if it exists
-        report_file = self.report_dir / "report.md"
+        # remove report if it exists
+        report_file = self.report_dir / constants.PS_REPORT_FILENAME
         if report_file.exists():
             report_file.unlink()
-        # Generate and write the header section with start timestamp
-        header_file = self.report_dir / "header.md"
+        # generate and write the header section with start timestamp
+        header_file = self.report_dir / constants.PS_REPORT_HEADER_FILENAME
         header = generate_header()
         start_time = utils.current_dt_human()
         with header_file.open("w", encoding="utf-8") as f:

@@ -362,7 +362,7 @@ class Report(Log, DDP):
     report_dir: Annotated[
         pathlib.Path,
         pydantic.Field(description="Directory to save generated report to"),
-    ] = constants.CHATGPT2_REPORT_DIR
+    ] = constants.PS_REPORT_DIR
 
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 

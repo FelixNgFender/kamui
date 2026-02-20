@@ -6,6 +6,7 @@ readme = "README.md"
 authors = [{ name = "felixngfender", email = "ngthinh302@gmail.com" }]
 requires-python = ">=3.13"
 dependencies = [
+  "datasets>=4.4.1",
   "pydantic>=2.12.5",
   "pydantic-settings>=2.12.0",
   "rich>=14.3.1",
@@ -13,6 +14,8 @@ dependencies = [
   "torch>=2.9.1",
   "torchvision>=0.24.1",
   "tiktoken>=0.12.0",
+  "psutil>=7.2.2",
+  "rustbpe>=0.1.0",
 ]
 
 [build-system]
@@ -21,7 +24,6 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
-  "datasets>=4.4.1",
   "graphviz>=0.21",
   "ipykernel>=7.1.0",
   "ipywidgets>=8.1.8",

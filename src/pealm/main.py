@@ -193,7 +193,7 @@ class ReportReset(settings.Report):
 
 
 class Report(settings.Log):
-    """Generate or reset ChatGPT2 training reports."""
+    """Generate or reset Peashooter training reports."""
 
     generate: ps.CliSubCommand[ReportGenerate]
     reset: ps.CliSubCommand[ReportReset]
