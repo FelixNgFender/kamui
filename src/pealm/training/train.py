@@ -12,7 +12,7 @@ import torch.utils.data as data_utils
 from torch import nn, optim
 
 from pealm import constants, dataset, settings, tokenice, training, utils
-from pealm import model as model_mod
+from pealm import models as model_mod
 
 logger = logging.getLogger(__name__)
 

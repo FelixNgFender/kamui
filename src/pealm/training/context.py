@@ -10,7 +10,7 @@ import torch.distributed as dist
 from torch import optim
 from torch.utils import data as data_utils
 
-from pealm import constants, model, tokenice, training
+from pealm import constants, models, tokenice, training
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class Context:
     """Run-specific training context holding all state and configuration."""
 
     device: torch.device
-    model: model.LanguageModel
+    model: models.LanguageModel
     """Raw model weights."""
     optimizer: optim.Optimizer
     tokenizer: tokenice.Tokenizer
@@ -45,7 +45,7 @@ class Context:
     """Whether this context is running on the master process."""
 
     @property
-    def training_model(self) -> model.LanguageModel | torch.nn.parallel.DistributedDataParallel:
+    def training_model(self) -> models.LanguageModel | torch.nn.parallel.DistributedDataParallel:
         """The model to be used for training. Wrapped with DDP if DDP is enabled."""
         if self.is_ddp:
             assert self.ddp_model is not None, "ddp_model should not be None when is_ddp is True"  # noqa: S101
@@ -82,7 +82,7 @@ class Context:
         if not isinstance(checkpoint, training.Checkpoint):
             msg = f"invalid checkpoint format: {type(checkpoint)}"
             raise TypeError(msg)
-        if model.Type(checkpoint.model_type) != self.model.TYPE:
+        if models.Type(checkpoint.model_type) != self.model.TYPE:
             msg = f"checkpoint model type {checkpoint.model_type} does not match current model type {self.model.TYPE}"
             raise ValueError(msg)
 

@@ -8,7 +8,7 @@ import torch.nn.functional as F  # noqa: N812
 from huggingface_hub import logging
 
 from pealm import constants, settings, tokenice, training
-from pealm import model as model_mod
+from pealm import models as model_mod
 
 logger = logging.get_logger(__name__)
 

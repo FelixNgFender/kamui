@@ -5,7 +5,7 @@ from typing import assert_never
 
 import torch
 
-from pealm import model as model_mod
+from pealm import models as model_mod
 from pealm import settings, tokenice, training
 
 logger = logging.getLogger(__name__)

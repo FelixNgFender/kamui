@@ -309,12 +309,14 @@ class Sample(Log, Device, Precision):
         pydantic.Field(
             ge=0.0,
             le=2.0,
+            validation_alias=pydantic.AliasChoices("t", "temperature"),
             description="Sampling temperature i.e., how random the sampling should be",
         ),
     ] = constants.SAMPLE_TEMPERATURE
     top_k: Annotated[
         pydantic.PositiveInt | None,
         pydantic.Field(
+            validation_alias=pydantic.AliasChoices("k", "top_k"),
             description="Number of top K tokens to consider for sampling. If none, no top-k filtering)",
         ),
     ] = constants.SAMPLE_TOP_K

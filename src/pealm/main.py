@@ -8,7 +8,7 @@ import pydantic_settings as ps
 import rich.logging
 import rich.prompt
 
-from pealm import convert, model, report, sample, settings, training
+from pealm import convert, models, report, sample, settings, training
 from pealm import eval as eval_mod
 
 logger = logging.getLogger(__name__)
@@ -209,7 +209,7 @@ class Clean(settings.Clean):
     def cli_cmd(self) -> None:
         configure_logging(self)
 
-        model_artifact_dirs = [self.checkpoint_dir / model_type for model_type in model.Type]
+        model_artifact_dirs = [self.checkpoint_dir / model_type for model_type in models.Type]
         if self.force or rich.prompt.Confirm.ask(
             f"delete all model artifact directories: {', '.join(str(d) for d in model_artifact_dirs)}? THIS ACTION "
             "CANNOT BE UNDONE.",
