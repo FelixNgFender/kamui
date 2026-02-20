@@ -21,7 +21,7 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
-  "datasets[image]>=4.4.1",
+  "datasets>=4.4.1",
   "graphviz>=0.21",
   "ipykernel>=7.1.0",
   "ipywidgets>=8.1.8",
