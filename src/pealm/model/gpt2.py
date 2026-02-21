@@ -10,7 +10,7 @@ from torch import nn, optim
 from torch.nn import init
 
 from pealm import constants, settings
-from pealm.models import language_model as lm
+from pealm.model import base
 
 logger = logging.getLogger(__name__)
 
@@ -95,8 +95,8 @@ class GPT2Block(nn.Module):
         return x + self.mlp(self.ln_2(x))  # (B, T, C)
 
 
-class GPT2(lm.LanguageModel):
-    TYPE = lm.Type.GPT2
+class GPT2(base.LanguageModel):
+    TYPE = base.Type.GPT2
 
     def __init__(
         self,
@@ -164,7 +164,7 @@ class GPT2(lm.LanguageModel):
         return logits, loss
 
     @classmethod
-    def from_pretrained(cls, model_type: settings.GPT2Type) -> "GPT2":
+    def from_pretrained(cls, model_type: settings.GPT2PretrainedVariant) -> "GPT2":
         logger.info("loading weights from pretrained model %s", model_type)
         config_args = constants.GPT2_PRETRAINED_CONFIG[model_type]
         # share vocab size, context size, and feedforward projection factor

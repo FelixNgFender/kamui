@@ -1,21 +1,19 @@
 import logging
 import os
 import shutil
-from typing import ClassVar
 
-import pydantic
 import pydantic_settings as ps
 import rich.logging
 import rich.prompt
 
-from pealm import convert, models, report, sample, settings, training
+from pealm import convert, model, report, sample, settings, train
 from pealm import eval as eval_mod
 
 logger = logging.getLogger(__name__)
 
 
 def configure_logging(log_settings: settings.Log) -> None:
-    class DDPRankFilter(logging.Filter):
+    class DistRankFilter(logging.Filter):
         """Only allows logs from rank 0 (master process) in DDP training."""
 
         def filter(self, record: logging.LogRecord) -> bool:  # noqa: ARG002
@@ -33,45 +31,32 @@ def configure_logging(log_settings: settings.Log) -> None:
     )
     # add rank filter to root logger handlers
     for handler in logging.getLogger().handlers:
-        handler.addFilter(DDPRankFilter())
+        handler.addFilter(DistRankFilter())
     logger.debug("running with settings %s", log_settings)
 
 
-class TrainCharBigram(settings.Train, settings.CharBigram):
+class TrainCharBigram(settings.TrainCharBigram, settings.CharBigram):
     """Trains a character-level bigram model."""
 
     def cli_cmd(self) -> None:
-        training.train(self, self)
+        train.train_char_bigram(self, self)
 
 
-class TrainCharTransformer(settings.Train, settings.CharTransformer):
+class TrainCharTransformer(settings.TrainCharTransformer, settings.CharTransformer):
     """Trains a character-level transformer model."""
 
     def cli_cmd(self) -> None:
-        training.train(self, self)
+        train.train_char_transformer(self, self)
 
 
-class TrainGPT2(settings.GPT2, settings.TrainGPT2):
+class TrainGPT2(
+    settings.TrainGPT2,
+    settings.GPT2,
+):
     """Trains the GPT2 (124M) model from Felix Nguyen."""
 
-    @pydantic.model_validator(mode="after")
-    def validate_batch_sizes(self) -> "TrainGPT2":
-        batch_size = self.batch_size
-        world_size = self.ddp.world_size
-        if batch_size % world_size != 0:
-            msg = f"batch size {batch_size} must be divisible by world size {world_size}"
-            raise ValueError(msg)
-
-        rank_batch_size = batch_size // world_size
-        micro_batch_size = self.micro_batch_size
-        if rank_batch_size % micro_batch_size != 0:
-            msg = f"rank batch size {rank_batch_size} must be divisible by micro batch size {micro_batch_size}"
-            raise ValueError(msg)
-
-        return self
-
     def cli_cmd(self) -> None:
-        training.train(self, self)
+        train.train_gpt2(self, self)
 
 
 class Train(settings.Log):
@@ -101,38 +86,28 @@ class SampleCharBigram(settings.Sample, settings.CharBigram):
     """Samples a character-level bigram model."""
 
     def cli_cmd(self) -> None:
-        sample.sample(self, self)
+        sample.sample_char_bigram(self, self)
 
 
 class SampleCharTransformer(settings.Sample, settings.CharTransformer):
     """Samples a character-level transformer model."""
 
     def cli_cmd(self) -> None:
-        sample.sample(self, self)
+        sample.sample_char_transformer(self, self)
 
 
-class SampleGPT2Pretrained(settings.Sample):
+class SampleGPT2Pretrained(settings.SampleGPT2Pretrained, settings.GPT2Pretrained):
     """Samples the GPT2 (124M) model from OpenAI."""
 
-    # override from Sample: downloads from HF
-    checkpoint: ClassVar[None] = None
-    # override from Sample: GPT2 uses a built-in tokenizer
-    tokenizer_dir: ClassVar[None] = None
-
     def cli_cmd(self) -> None:
-        # use default GPT2 to typecheck, not gonna be used anyway
-        # when sampling pretrained
-        sample.sample(self, settings.GPT2())
+        sample.sample_gpt2_pretrained(self, self)
 
 
-class SampleGPT2(settings.Sample, settings.GPT2):
+class SampleGPT2(settings.SampleGPT2, settings.GPT2):
     """Samples the GPT2 (124M) model from Felix Nguyen."""
 
-    # override from Sample: GPT2 uses a built-in tokenizer
-    tokenizer_dir: ClassVar[None] = None
-
     def cli_cmd(self) -> None:
-        sample.sample(self, self)
+        sample.sample_gpt2(self, self)
 
 
 class Sample(settings.Log):
@@ -148,23 +123,18 @@ class Sample(settings.Log):
         ps.CliApp.run_subcommand(self)
 
 
-class EvalGPT2Pretrained(settings.Evaluate):
+class EvalGPT2Pretrained(settings.EvalGPT2Pretrained, settings.GPT2Pretrained):
     """Evaluates the GPT2 (124M) model from OpenAI on HellaSwag."""
 
-    # override from Evaluate: downloads from HF
-    checkpoint: ClassVar[None] = None
-
     def cli_cmd(self) -> None:
-        # use default GPT2 to typecheck, not gonna be used anyway
-        # when sampling pretrained
-        eval_mod.evaluate(self, settings.GPT2())
+        eval_mod.eval_gpt2_pretrained(self, self)
 
 
-class EvalGPT2(settings.Evaluate, settings.GPT2):
+class EvalGPT2(settings.Eval, settings.GPT2):
     """Evaluates the GPT2 (124M) model from Felix Nguyen on HellaSwag."""
 
     def cli_cmd(self) -> None:
-        eval_mod.evaluate(self, self)
+        eval_mod.eval_gpt2(self, self)
 
 
 class Eval(settings.Log):
@@ -182,14 +152,14 @@ class ReportGenerate(settings.Report):
     """Generates the final report."""
 
     def cli_cmd(self) -> None:
-        report.DDPReport(self).generate()
+        report.DistReport(self).generate()
 
 
 class ReportReset(settings.Report):
     """Resets the final report."""
 
     def cli_cmd(self) -> None:
-        report.DDPReport(self).reset()
+        report.DistReport(self).reset()
 
 
 class Report(settings.Log):
@@ -209,7 +179,7 @@ class Clean(settings.Clean):
     def cli_cmd(self) -> None:
         configure_logging(self)
 
-        model_artifact_dirs = [self.checkpoint_dir / model_type for model_type in models.Type]
+        model_artifact_dirs = [self.checkpoint_dir / model_type for model_type in model.Type]
         if self.force or rich.prompt.Confirm.ask(
             f"delete all model artifact directories: {', '.join(str(d) for d in model_artifact_dirs)}? THIS ACTION "
             "CANNOT BE UNDONE.",

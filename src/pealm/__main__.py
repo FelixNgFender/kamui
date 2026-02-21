@@ -1,4 +1,4 @@
-import pealm
+from pealm import cli
 
 if __name__ == "__main__":
-    pealm.main()
+    cli.main()

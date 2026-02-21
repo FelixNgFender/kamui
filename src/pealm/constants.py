@@ -11,6 +11,7 @@ VAL_SPLIT = 1.0 - TRAIN_SPLIT
 DATA_DIR = pathlib.Path("data")
 TINYSHAKESPEARE_PATH = DATA_DIR / "tinyshakespeare.txt"
 HELLASWAG_DIR = DATA_DIR / "hellaswag"
+FINEWEB_EDU10B_DIR = DATA_DIR / "fineweb_edu10B"
 TORCH_SEED = 2147483647
 SEED = 42
 # https://docs.pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html

@@ -5,14 +5,14 @@ import pathlib
 from collections.abc import Sequence
 
 from pealm import constants
-from pealm.tokenice import tokenizer
-from pealm.tokenice import vocab as vocab_mod
+from pealm.tokenizer import base
+from pealm.tokenizer import vocab as vocab_mod
 
 logger = logging.getLogger(__name__)
 
 
 class CharTokenizer:
-    TYPE = tokenizer.Type.CHAR
+    TYPE = base.Type.CHAR
 
     def __init__(self, vocab: vocab_mod.Vocab) -> None:
         self.vocab = vocab

@@ -8,7 +8,7 @@ import numpy as np
 import torch
 import torch.utils.data as data_utils
 
-from pealm import tokenice
+from pealm import tokenizer as tokenizer_mod
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class Text(data_utils.Dataset):
 
     def __init__(
         self,
-        tokenizer: tokenice.Tokenizer,
+        tokenizer: tokenizer_mod.Tokenizer,
         text: str,
         context_size: int,
     ) -> None:

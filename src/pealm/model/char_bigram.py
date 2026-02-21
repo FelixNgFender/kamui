@@ -3,11 +3,11 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from pealm.models import language_model as lm
+from pealm.model import base
 
 
-class CharBigram(lm.LanguageModel):
-    TYPE = lm.Type.CHAR_BIGRAM
+class CharBigram(base.LanguageModel):
+    TYPE = base.Type.CHAR_BIGRAM
 
     def __init__(self, *, context_size: int, vocab_size: int) -> None:
         super().__init__(context_size)

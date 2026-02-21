@@ -7,7 +7,7 @@ from torch import nn
 from torch.nn import init
 
 from pealm import constants
-from pealm.models import language_model as lm
+from pealm.model import base
 
 logger = logging.getLogger(__name__)
 
@@ -103,8 +103,8 @@ class TransformerBlock(nn.Module):
         return x + self.ffwd(self.ln2(x))
 
 
-class CharTransformer(lm.LanguageModel):
-    TYPE = lm.Type.CHAR_TRANSFORMER
+class CharTransformer(base.LanguageModel):
+    TYPE = base.Type.CHAR_TRANSFORMER
 
     def __init__(
         self,

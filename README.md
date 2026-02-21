@@ -99,7 +99,7 @@ torchrun \
     -m pealm train gpt2
 
 # ddp run on 10B tokens of fineweb edu data, 8x RTX 5090, B=512, microbatch=32, T=1024
-OMP_NUM_THREADS=1 torchrun --standalone --nproc_per_node=8 -m pealm train gpt2 --input.npy-shards data/fineweb_edu10B --micro-batch-size 32 --save-every 5000 --steps 38146 2>&1 | tee training.log
+OMP_NUM_THREADS=1 torchrun --standalone --nproc_per_node=8 -m pealm train gpt2 --input data/fineweb_edu10B --micro-batch-size 32 --save-every 5000 --steps 38146 2>&1 | tee training.log
 
 # monitor GPU utilization and memory usage during training
 watch -n 1 'nvidia-smi \

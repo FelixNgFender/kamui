@@ -8,7 +8,7 @@ import rustbpe
 import tiktoken
 
 from pealm import constants
-from pealm.tokenice import tokenizer
+from pealm.tokenizer import base
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ def _cached_encode_special(enc: tiktoken.Encoding, text_or_bytes: str | bytes) -
 
 
 class PeashooterTokenizer:
-    TYPE = tokenizer.Type.PEASHOOTER
+    TYPE = base.Type.PEASHOOTER
 
     def __init__(self, enc: tiktoken.Encoding, bos: str) -> None:
         self.enc = enc

@@ -4,8 +4,8 @@ import pathlib
 
 import torch
 
-from pealm import models as model_mod
-from pealm import training
+from pealm import model as model_mod
+from pealm import train
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class Checkpoint:
             map_location=map_location,
             weights_only=False,
         )
-        if not isinstance(checkpoint, training.Checkpoint):
+        if not isinstance(checkpoint, train.Checkpoint):
             msg = f"expected Checkpoint instance, got {type(checkpoint)}"
             raise TypeError(msg)
         return checkpoint
@@ -38,9 +38,9 @@ class Checkpoint:
     @classmethod
     def load_weights(cls, ckpt: pathlib.Path, map_location: torch.device) -> dict[str, torch.Tensor]:
         logger.debug("loading weights from %s", ckpt)
-        with torch.serialization.safe_globals([training.Checkpoint, model_mod.Type]):
+        with torch.serialization.safe_globals([train.Checkpoint, model_mod.Type]):
             checkpoint = torch.load(ckpt, map_location=map_location, weights_only=True)
-            if isinstance(checkpoint, training.Checkpoint):
+            if isinstance(checkpoint, train.Checkpoint):
                 model_state_dict = checkpoint.model_state_dict
             elif isinstance(checkpoint, dict):
                 model_state_dict = checkpoint

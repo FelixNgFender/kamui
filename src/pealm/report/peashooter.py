@@ -386,7 +386,7 @@ class Report:
         logger.info("report reset, header written to %s", header_file)
 
 
-class DDPReport(Report):
+class DistReport(Report):
     """A Report that only logs on rank 0, does nothing on other ranks."""
 
     def __init__(self, report_settings: settings.Report) -> None:

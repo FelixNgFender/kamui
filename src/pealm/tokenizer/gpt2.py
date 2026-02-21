@@ -4,13 +4,13 @@ from collections.abc import Sequence
 
 import tiktoken
 
-from pealm.tokenice import tokenizer
+from pealm.tokenizer import base
 
 logger = logging.getLogger(__name__)
 
 
 class GPT2Tokenizer:
-    TYPE = tokenizer.Type.GPT2
+    TYPE = base.Type.GPT2
 
     def __init__(self) -> None:
         self.encoder = tiktoken.get_encoding("gpt2")

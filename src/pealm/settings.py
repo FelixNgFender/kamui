@@ -1,7 +1,7 @@
 import functools
 import os
 import pathlib
-from typing import Annotated, Literal
+from typing import Annotated, ClassVar, Literal
 
 import pydantic
 import pydantic_settings as ps
@@ -55,8 +55,8 @@ class DDP(ps.BaseSettings):
     @pydantic.computed_field
     @functools.cached_property[bool]
     def enabled(self) -> bool:
-        """DDP is enabled when running with torchrun (RANK env var is set)."""
-        return "RANK" in os.environ
+        """DDP is enabled when running with torchrun."""
+        return all(var in os.environ for var in ("RANK", "LOCAL_RANK", "WORLD_SIZE"))
 
     rank: Annotated[int, pydantic.Field(description="Global process rank. 0 for master process.")] = constants.DDP_RANK
     local_rank: Annotated[
@@ -116,7 +116,16 @@ class CharTransformer(ModelBase):
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
-GPT2Type = Literal["gpt2", "gpt2-medium", "gpt2-large", "gpt2-xl"]
+GPT2PretrainedVariant = Literal["gpt2", "gpt2-medium", "gpt2-large", "gpt2-xl"]
+
+
+class GPT2Pretrained:
+    """Settings for using a pretrained GPT-2 model from Hugging Face. No model creation settings since we just download
+    the pretrained model."""
+
+    variant: Annotated[GPT2PretrainedVariant, pydantic.Field(description="GPT2 model variant to use")] = "gpt2"
+
+    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 class GPT2(ModelBase):
@@ -147,32 +156,10 @@ class GPT2(ModelBase):
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
-Model = CharBigram | CharTransformer | GPT2
-
-
-class Input(ps.CliMutuallyExclusiveGroup):
-    """Settings for input data. If none are specified, the tinyshakespeare text dataset is used."""
-
-    txt: Annotated[
-        pathlib.Path | None,
-        pydantic.Field(
-            description="Input text file for training",
-        ),
-    ] = None
-    npy_shards: Annotated[
-        pathlib.Path | None,
-        pydantic.Field(
-            description="Directory containing .npy shard files for training (shards should be named train_0.npy, "
-            "train_1.npy, val_0.npy, etc.)",
-        ),
-    ] = None
-
-
 class Train(Log, Seed, Device, Precision):
     """Settings for the `train` CLI subcommand."""
 
     # train settings
-    input: Input = Input(txt=constants.TINYSHAKESPEARE_PATH)
     train_split: Annotated[
         float,
         pydantic.Field(gt=0.0, lt=1.0, description="Proportion of data to use for training"),
@@ -218,8 +205,41 @@ class Train(Log, Seed, Device, Precision):
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
+class TrainCharBigram(Train):
+    """CharBigram specific training settings."""
+
+    input: Annotated[
+        pathlib.Path,
+        pydantic.Field(
+            description="Input text file for training",
+        ),
+    ] = constants.TINYSHAKESPEARE_PATH
+
+    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+
+
+class TrainCharTransformer(Train):
+    """CharTransformer specific training settings."""
+
+    input: Annotated[
+        pathlib.Path,
+        pydantic.Field(
+            description="Input text file for training",
+        ),
+    ] = constants.TINYSHAKESPEARE_PATH
+
+    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+
+
 class TrainGPT2(Train):
-    """Overrides and extends base Train class with GPT-2 specific training settings."""
+    """GPT-2 specific training settings."""
+
+    input: Annotated[
+        pathlib.Path,
+        pydantic.Field(
+            description="Input numpy shards for training",
+        ),
+    ] = constants.FINEWEB_EDU10B_DIR
 
     # override Train
     batch_size: Annotated[
@@ -230,6 +250,22 @@ class TrainGPT2(Train):
         pydantic.PositiveInt,
         pydantic.Field(description="Micro-batch size for gradient accumulation"),
     ] = constants.GPT2_MICRO_BATCH_SIZE
+
+    @pydantic.model_validator(mode="after")
+    def validate_batch_sizes(self) -> "TrainGPT2":
+        batch_size = self.batch_size
+        world_size = self.ddp.world_size
+        if batch_size % world_size != 0:
+            msg = f"batch size {batch_size} must be divisible by world size {world_size}"
+            raise ValueError(msg)
+
+        rank_batch_size = batch_size // world_size
+        micro_batch_size = self.micro_batch_size
+        if rank_batch_size % micro_batch_size != 0:
+            msg = f"rank batch size {rank_batch_size} must be divisible by micro batch size {micro_batch_size}"
+            raise ValueError(msg)
+
+        return self
 
     # lr schedule
     min_lr: Annotated[
@@ -335,10 +371,30 @@ class Sample(Log, Device, Precision):
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
+class SampleGPT2Pretrained(Sample):
+    """GPT2 pretrained-specific sample settings"""
+
+    # override from Sample: downloads from HF
+    checkpoint: ClassVar[None] = None
+    # override from Sample: GPT2 uses a built-in tokenizer
+    tokenizer_dir: ClassVar[None] = None
+
+    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+
+
+class SampleGPT2(Sample):
+    """GPT2-specific sample settings"""
+
+    # override from Sample: GPT2 uses a built-in tokenizer
+    tokenizer_dir: ClassVar[None] = None
+
+    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+
+
 HellaSwagSplit = Literal["train", "val", "test"]
 
 
-class Evaluate(Log, Seed, Device, Precision):
+class Eval(Log, Seed, Device, Precision):
     """Settings for the `evaluate` CLI subcommand."""
 
     checkpoint: Annotated[
@@ -348,10 +404,25 @@ class Evaluate(Log, Seed, Device, Precision):
             description="Full or weights-only checkpoint to evaluate on",
         ),
     ]
+    input_dir: Annotated[
+        pathlib.Path,
+        pydantic.Field(
+            description="Input dataset directory to evaluate on (split has to be named {split}.jsonl)",
+        ),
+    ] = constants.HELLASWAG_DIR
     split: Annotated[
         HellaSwagSplit,
         pydantic.Field(description="Dataset split to evaluate on"),
     ] = "val"
+
+    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+
+
+class EvalGPT2Pretrained(Eval):
+    """GPT2 pretrained-specific eval settings"""
+
+    # override from Evaluate: downloads from HF
+    checkpoint: ClassVar[None] = None
 
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
