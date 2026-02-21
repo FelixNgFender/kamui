@@ -58,8 +58,8 @@ the `pealm` cli supports:
 ### sampling with `pealm`
 
 best weights-only checkpoints for all models are saved in
-[the weights directory](../../weights/). you can sample from them using the
-`pealm` cli:
+[the weights directory](./weights/). you can sample from them using the `pealm`
+cli:
 
 ```bash
 # character-level transformer trained on tinyshakespeare
