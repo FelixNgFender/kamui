@@ -1,4 +1,3 @@
-# ruff: noqa: N812, N806
 import inspect
 import logging
 from typing import no_type_check

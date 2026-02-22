@@ -24,11 +24,8 @@ def train_peashooter_tokenizer(
     text_iter = dataset.ShardedParquet(
         train_settings.input_dir,
         "train",
-        # single device training
-        0,
-        1,
-        train_settings.max_chars_per_doc,
-        train_settings.max_chars,
+        max_chars=train_settings.max_chars,
+        max_chars_per_doc=train_settings.max_chars_per_doc,
         shuffle=True,
         seed=train_settings.seed,
     ).iter_texts()

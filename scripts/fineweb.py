@@ -1,4 +1,3 @@
-# noqa: INP001
 """
 FineWeb-Edu dataset (for srs pretraining)
 https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu
@@ -36,7 +35,8 @@ def tokenize(doc: dict) -> np.ndarray:
     tokens = [eot]  # the special <|endoftext|> token delimits all documents
     tokens.extend(enc.encode_ordinary(doc["text"]))
     tokens_np = np.array(tokens)
-    assert (tokens_np >= 0).all() and (tokens_np < 2**16).all(), "token dictionary too large for uint16"  # noqa: PT018, S101
+    assert (tokens_np >= 0).all(), "token dictionary too small for uint16"
+    assert (tokens_np < 2**16).all(), "token dictionary too large for uint16"
     return tokens_np.astype(np.uint16)
 
 

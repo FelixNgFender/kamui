@@ -1,4 +1,3 @@
-# ruff: noqa: N806, S101
 import dataclasses
 import logging
 import math
@@ -59,7 +58,7 @@ class GPT2Context(train.Context):
             return self.min_lr
         # cosine decay in between
         decay_ratio = (it - self.warmup_lr_steps) / (self.max_lr_steps - self.warmup_lr_steps)
-        assert 0 <= decay_ratio <= 1, "decay_ratio out of bounds"
+        assert 0 <= decay_ratio <= 1, "decay_ratio out of bounds"  # noqa: S101
         coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))  # 1 to 0
         return self.min_lr + coeff * (self.max_lr - self.min_lr)
 

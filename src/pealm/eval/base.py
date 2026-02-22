@@ -1,7 +1,7 @@
 import logging
 
 import torch
-import torch.nn.functional as F  # noqa: N812
+import torch.nn.functional as F
 
 from pealm import model as model_mod
 from pealm import settings, train

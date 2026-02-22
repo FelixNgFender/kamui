@@ -1,4 +1,3 @@
-# ruff: noqa: N806, S101
 import dataclasses
 import logging
 import pathlib
@@ -73,7 +72,7 @@ class Context:
     def training_model(self) -> model_mod.LanguageModel | torch.nn.parallel.DistributedDataParallel:
         """The model to be used for training. Wrapped with DDP if DDP is enabled."""
         if self.is_ddp:
-            assert self.ddp_model is not None, "ddp_model should not be None when is_ddp is True"
+            assert self.ddp_model is not None, "ddp_model should not be None when is_ddp is True"  # noqa: S101
             return self.ddp_model
         return self.model
 

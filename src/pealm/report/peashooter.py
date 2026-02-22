@@ -1,4 +1,3 @@
-# ruff: noqa: PLR2004, C901, PLR0912, PLR0915
 """
 Utilities for generating Peashooter training report cards.
 """
@@ -190,7 +189,7 @@ Generated: {timestamp}
         if wc_output:
             total_line = wc_output.strip().split("\n")[-1]
             parts = total_line.split()
-            if len(parts) >= 2:
+            if len(parts) >= 2:  # noqa: PLR2004
                 num_lines = int(parts[0])
                 num_chars = int(parts[1])
     num_tokens = num_chars // 4  # assume approximately 4 chars per token
@@ -267,7 +266,7 @@ class Report:
                     for k, v in item.items():
                         if isinstance(v, float):
                             vstr = f"{v:.4f}"
-                        elif isinstance(v, int) and v >= 10000:
+                        elif isinstance(v, int) and v >= 10000:  # noqa: PLR2004
                             vstr = f"{v:,.0f}"
                         else:
                             vstr = str(v)

@@ -1,4 +1,3 @@
-# ruff: noqa: PLR0913
 import atexit
 import datetime
 import random

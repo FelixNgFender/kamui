@@ -471,6 +471,26 @@ class EvalGPT2Pretrained(Eval):
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
+class EvalPeashooterTokenizer(Log, Seed):
+    """Peashooter tokenizer-specific eval settings."""
+
+    input_dir: Annotated[
+        pathlib.Path,
+        pydantic.Field(
+            validation_alias=pydantic.AliasChoices("i", "input_dir", "input"),
+            description="Input parquet shards directory for training",
+        ),
+    ] = constants.PS_BASE_DATA_DIR
+    tokenizer_dir: Annotated[
+        pathlib.Path,
+        pydantic.Field(
+            description="Directory containing tokenizer config to evaluate with",
+        ),
+    ] = constants.PS_TOKENIZER_DIR
+
+    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+
+
 class Report(Log):
     """Settings for the `report` CLI subcommand."""
 

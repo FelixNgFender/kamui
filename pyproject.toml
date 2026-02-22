@@ -47,15 +47,26 @@ lint.select = [
   "ALL", # include all the rules, including new ones
 ]
 lint.ignore = [
-  "D",      # missing docstrings
-  "COM812", # missing trailing comma, conflict with formatter
-  "TD002",  # missing TODO author
-  "TD003",  # missing issue link for this TODO
-  "FIX002", # fix TODOs
+  "D",       # missing docstrings
+  "COM812",  # missing trailing comma, conflict with formatter
+  "TD002",   # missing TODO author
+  "TD003",   # missing issue link for this TODO
+  "FIX002",  # fix TODOs
+  "C901",    # too complex
+  "PLR0912", # too many branches
+  "PLR0913", # too many arguments
+  "PLR0915", # too many statements
+  "N806",    # variables in function should be lowercase, but we want to use `X` and `y` for data and labels
+  "N812",    # lowercase package imported as non-lowercase, we wanna use `torch.nn.functional` as `F`
 ]
 # https://github.com/astral-sh/ruff-vscode/blob/main/README.md#configuring-vs-code
 lint.extend-select = ["I"]
-lint.per-file-ignores = { "test/*.py" = ["S101"] }
+lint.per-file-ignores = { "test/*.py" = ["S101"], "scripts/*.py" = [
+  # no asserts
+  "S101",
+  # part of implicit namespace package
+  "INP001",
+] }
 
 [tool.ty.src]
 exclude = ["notebooks/micrograd/mnist.ipynb"]

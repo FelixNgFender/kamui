@@ -143,11 +143,20 @@ class EvalGPT2(settings.Eval, settings.GPT2):
         eval_mod.eval_gpt2(self, self)
 
 
+class EvalPeashooterTokenizer(settings.EvalPeashooterTokenizer, settings.Report):
+    """Evaluates the Peashooter tokenizer."""
+
+    def cli_cmd(self) -> None:
+        _report = report.DistReport(self)
+        eval_mod.eval_peashooter_tokenizer(self, _report)
+
+
 class Eval(settings.Log):
     """Evaluates model on HellaSwag."""
 
     gpt2_pretrained: ps.CliSubCommand[EvalGPT2Pretrained]
     gpt2: ps.CliSubCommand[EvalGPT2]
+    peashooter_tokenizer: ps.CliSubCommand[EvalPeashooterTokenizer]
 
     def cli_cmd(self) -> None:
         configure_logging(self)

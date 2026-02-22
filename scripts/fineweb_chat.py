@@ -5,7 +5,7 @@ This file contains utilities for:
 - download the files on demand if they are not on disk
 
 For details of how the dataset was prepared, see `repackage_data_reference.py`.
-"""  # noqa: INP001
+"""
 
 import contextlib
 import logging

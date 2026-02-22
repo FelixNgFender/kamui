@@ -11,7 +11,7 @@ gpt2-xl (1558M)
 - this script: 10042 acc: 0.3842 acc_norm: 0.4893 (completion style)
 
 The validation set of HellaSwag has a total of 10,042 examples.
-"""  # noqa: INP001
+"""
 
 import pathlib
 

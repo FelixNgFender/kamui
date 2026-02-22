@@ -1,4 +1,3 @@
-# ruff: noqa: N812
 import abc
 import enum
 import logging

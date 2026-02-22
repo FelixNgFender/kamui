@@ -50,15 +50,15 @@ class ShardedNpy(data_utils.IterableDataset):
 
     TYPE = Type.NPY_SHARD
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         data_dir: str | pathlib.Path,
         split: Literal["train", "val"],
         context_size: int,
         batch_size: int,
-        rank: int,
-        world_size: int,
         *,
+        rank: int = 0,
+        world_size: int = 1,
         shuffle: bool = False,
         seed: int | None = None,
     ) -> None:
@@ -98,15 +98,15 @@ class ShardedParquet(data_utils.IterableDataset):
 
     TYPE = Type.PARQUET_SHARD
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         data_dir: str | pathlib.Path,
         split: Literal["train", "val"],
-        rank: int,
-        world_size: int,
+        *,
         max_chars_per_doc: int | None = None,
         max_chars: int | None = None,
-        *,
+        rank: int = 0,
+        world_size: int = 1,
         shuffle: bool = False,
         seed: int | None = None,
     ) -> None:
@@ -128,6 +128,10 @@ class ShardedParquet(data_utils.IterableDataset):
         self.rng = np.random.default_rng(seed)
 
     def iter_texts(self) -> Iterator[str]:
+        for batch in self.iter_texts_batch():
+            yield from batch
+
+    def iter_texts_batch(self) -> Iterator[list[str]]:
         logger.info("iterating over %d shards", len(self.shard_paths))
         if self.max_chars is not None:
             logger.info("will yield up to %d characters", self.max_chars)
@@ -148,11 +152,16 @@ class ShardedParquet(data_utils.IterableDataset):
                 if self.max_chars_per_doc is not None:
                     col = pc.utf8_slice_codeunits(col, 0, self.max_chars_per_doc)  # ty:ignore[unresolved-attribute]
                 docs = col.to_pylist()  # 1024 documents
+                docs_batch: list[str] = []
                 for doc in docs:
                     nchars_yielded += len(doc)
-                    yield doc
+                    docs_batch.append(doc)
                     if self.max_chars is not None and nchars_yielded > self.max_chars:
+                        if docs_batch:
+                            yield docs_batch
                         return
+                if docs_batch:
+                    yield docs_batch
 
     def __iter__(self) -> Iterator[tuple[torch.Tensor, torch.Tensor]]:
         raise NotImplementedError
