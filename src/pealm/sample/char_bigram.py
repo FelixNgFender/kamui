@@ -1,5 +1,4 @@
-from pealm import model as model_mod
-from pealm import settings, utils
+from pealm import model, settings, utils
 from pealm.sample import base
 from pealm.tokenizer import CharTokenizer
 
@@ -12,13 +11,13 @@ def sample_char_bigram(sample_settings: settings.Sample, model_settings: setting
         fp32_matmul_precision=sample_settings.fp32_matmul_precision,
     )
     tokenizer = CharTokenizer.load(sample_settings.tokenizer_dir)
-    model = model_mod.CharBigram(
+    _model = model.CharBigram(
         context_size=model_settings.context_size,
         vocab_size=tokenizer.vocab_size,
     )
     base.sample(
         device=device,
-        model=model,
+        model=_model,
         tokenizer=tokenizer,
         sample_settings=sample_settings,
     )

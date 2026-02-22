@@ -49,14 +49,19 @@ class TrainCharTransformer(settings.TrainCharTransformer, settings.CharTransform
         train.train_char_transformer(self, self)
 
 
-class TrainGPT2(
-    settings.TrainGPT2,
-    settings.GPT2,
-):
+class TrainGPT2(settings.TrainGPT2, settings.GPT2):
     """Trains the GPT2 (124M) model from Felix Nguyen."""
 
     def cli_cmd(self) -> None:
         train.train_gpt2(self, self)
+
+
+class TrainPeashooterTokenizer(settings.TrainPeashooterTokenizer, settings.PeashooterTokenizer, settings.Report):
+    """Trains the Peashooter tokenizer."""
+
+    def cli_cmd(self) -> None:
+        _report = report.DistReport(self)
+        train.train_peashooter_tokenizer(self, self, _report)
 
 
 class Train(settings.Log):
@@ -65,6 +70,7 @@ class Train(settings.Log):
     char_bigram: ps.CliSubCommand[TrainCharBigram]
     char_transformer: ps.CliSubCommand[TrainCharTransformer]
     gpt2: ps.CliSubCommand[TrainGPT2]
+    peashooter_tokenizer: ps.CliSubCommand[TrainPeashooterTokenizer]
 
     def cli_cmd(self) -> None:
         configure_logging(self)

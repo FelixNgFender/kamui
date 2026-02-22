@@ -1,6 +1,4 @@
-from pealm import model as model_mod
-from pealm import settings, utils
-from pealm import tokenizer as tokenizer_mod
+from pealm import model, settings, tokenizer, utils
 from pealm.eval import base
 
 
@@ -11,11 +9,11 @@ def eval_gpt2_pretrained(eval_settings: settings.EvalGPT2Pretrained, model_setti
         torch_seed=eval_settings.torch_seed,
         fp32_matmul_precision=eval_settings.fp32_matmul_precision,
     )
-    tokenizer = tokenizer_mod.GPT2Tokenizer()
-    model = model_mod.GPT2.from_pretrained(model_settings.variant)
+    _tokenizer = tokenizer.GPT2Tokenizer()
+    _model = model.GPT2.from_pretrained(model_settings.variant)
     base.evaluate(
         device=device,
-        model=model,
-        tokenizer=tokenizer,
+        model=_model,
+        tokenizer=_tokenizer,
         eval_settings=eval_settings,
     )

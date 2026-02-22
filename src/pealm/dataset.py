@@ -5,6 +5,8 @@ from collections.abc import Iterator
 from typing import Literal
 
 import numpy as np
+import pyarrow.compute as pc
+import pyarrow.parquet as pq
 import torch
 import torch.utils.data as data_utils
 
@@ -16,6 +18,7 @@ logger = logging.getLogger(__name__)
 class Type(enum.StrEnum):
     TEXT = enum.auto()
     NPY_SHARD = enum.auto()
+    PARQUET_SHARD = enum.auto()
 
 
 class Text(data_utils.Dataset):
@@ -88,3 +91,68 @@ class ShardedNpy(data_utils.IterableDataset):
                 labels = buf[1:].view(self.batch_size, self.context_size)
                 yield contexts, labels
                 start += step
+
+
+class ShardedParquet(data_utils.IterableDataset):
+    """Must be used with DataLoader(batch_size=None) to disable automatic batching."""
+
+    TYPE = Type.PARQUET_SHARD
+
+    def __init__(  # noqa: PLR0913
+        self,
+        data_dir: str | pathlib.Path,
+        split: Literal["train", "val"],
+        rank: int,
+        world_size: int,
+        max_chars_per_doc: int | None = None,
+        max_chars: int | None = None,
+        *,
+        shuffle: bool = False,
+        seed: int | None = None,
+    ) -> None:
+        self.rank = rank
+        self.world_size = world_size
+        self.data_dir = pathlib.Path(data_dir)
+        self.split = split
+        self.max_chars_per_doc = max_chars_per_doc
+        """how many characters to keep from each document. if none, keep all characters."""
+        self.max_chars = max_chars
+        """how many characters to yield in total. if none, yield all characters."""
+        all_shard_paths = sorted(self.data_dir.glob("*.parquet"))
+        # val is last shard
+        self.shard_paths = all_shard_paths[:-1] if split == "train" else all_shard_paths[-1:]
+        if not self.shard_paths:
+            msg = f"no shards found for split {self.split} in {self.data_dir}"
+            raise ValueError(msg)
+        self.shuffle = shuffle
+        self.rng = np.random.default_rng(seed)
+
+    def iter_texts(self) -> Iterator[str]:
+        logger.info("iterating over %d shards", len(self.shard_paths))
+        if self.max_chars is not None:
+            logger.info("will yield up to %d characters", self.max_chars)
+        if self.max_chars_per_doc is not None:
+            logger.info("will keep up to %d characters per document", self.max_chars_per_doc)
+
+        if self.shuffle:
+            self.rng.shuffle(self.shard_paths)
+
+        nchars_yielded = 0
+        for shard_path in self.shard_paths:
+            logger.info("loading shard: %s", shard_path)
+            pf = pq.ParquetFile(shard_path)
+            # each ddp process reads every world_size-th row group, starting from its rank
+            for rg_idx in range(self.rank, pf.num_row_groups, self.world_size):
+                rg = pf.read_row_group(rg_idx)
+                col = rg.column("text")  # 1024 documents
+                if self.max_chars_per_doc is not None:
+                    col = pc.utf8_slice_codeunits(col, 0, self.max_chars_per_doc)  # ty:ignore[unresolved-attribute]
+                docs = col.to_pylist()  # 1024 documents
+                for doc in docs:
+                    nchars_yielded += len(doc)
+                    yield doc
+                    if self.max_chars is not None and nchars_yielded > self.max_chars:
+                        return
+
+    def __iter__(self) -> Iterator[tuple[torch.Tensor, torch.Tensor]]:
+        raise NotImplementedError

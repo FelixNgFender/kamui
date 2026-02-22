@@ -85,9 +85,12 @@ GPT2_PRETRAINED_CONTEXT_SIZE = 1024
 
 # peashooter
 PS_BASE_DIR = pathlib.Path("peashooter")
+PS_BASE_DATA_DIR = PS_BASE_DIR / "base_data"
 PS_VOCAB_SIZE = 32_768  # 2**15, including special tokens
 
 ## tokenizer
+PS_TOKENIZER_DIR = PS_BASE_DIR / "tokenizer"
+PS_TOKENIZER_BYTES_PER_TOKEN_FILENAME = "token_bytes.pt"  # noqa: S105
 PS_TOKENIZER_FILENAME = "tokenizer.pkl"
 PS_BOS_TOKEN = "<|bos|>"  # noqa: S105
 PS_SPECIAL_TOKENS: list[str] = [
@@ -129,6 +132,8 @@ PS_SPLIT_PATTERN = (
 )
 r"""This split pattern deviates from GPT-4 in that we use \p{N}{1,2} instead of \p{N}{1,3}"""
 PS_MIN_VOCAB_SIZE = len(PS_SPECIAL_TOKENS) + 256
+PS_TOKENIZER_MAX_CHARS = 2_000_000_000  # train on 2B characters
+PS_TOKENIZER_MAX_CHARS_PER_DOC = 10_000
 
 ## reports
 PS_REPORT_DIR = PS_BASE_DIR / "report"

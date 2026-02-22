@@ -156,6 +156,17 @@ class GPT2(ModelBase):
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
+class PeashooterTokenizer(ps.BaseSettings):
+    """Settings for creating the Peashooter tokenizer."""
+
+    vocab_size: Annotated[
+        pydantic.PositiveInt,
+        pydantic.Field(description="Vocabulary size"),
+    ] = constants.PS_VOCAB_SIZE
+
+    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+
+
 class Train(Log, Seed, Device, Precision):
     """Settings for the `train` CLI subcommand."""
 
@@ -211,6 +222,7 @@ class TrainCharBigram(Train):
     input: Annotated[
         pathlib.Path,
         pydantic.Field(
+            validation_alias=pydantic.AliasChoices("i", "input"),
             description="Input text file for training",
         ),
     ] = constants.TINYSHAKESPEARE_PATH
@@ -224,6 +236,7 @@ class TrainCharTransformer(Train):
     input: Annotated[
         pathlib.Path,
         pydantic.Field(
+            validation_alias=pydantic.AliasChoices("i", "input"),
             description="Input text file for training",
         ),
     ] = constants.TINYSHAKESPEARE_PATH
@@ -234,10 +247,11 @@ class TrainCharTransformer(Train):
 class TrainGPT2(Train):
     """GPT-2 specific training settings."""
 
-    input: Annotated[
+    input_dir: Annotated[
         pathlib.Path,
         pydantic.Field(
-            description="Input numpy shards for training",
+            validation_alias=pydantic.AliasChoices("i", "input_dir", "input"),
+            description="Input numpy shards directory for training",
         ),
     ] = constants.FINEWEB_EDU10B_DIR
 
@@ -288,6 +302,35 @@ class TrainGPT2(Train):
         pydantic.NonNegativeFloat,
         pydantic.Field(description="Weight decay for AdamW optimizer"),
     ] = constants.GPT2_WEIGHT_DECAY
+
+    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+
+
+class TrainPeashooterTokenizer(Log, Seed):
+    """Peashooter tokenizer-specific training settings."""
+
+    input_dir: Annotated[
+        pathlib.Path,
+        pydantic.Field(
+            validation_alias=pydantic.AliasChoices("i", "input_dir", "input"),
+            description="Input parquet shards directory for training",
+        ),
+    ] = constants.PS_BASE_DATA_DIR
+    output_dir: Annotated[
+        pathlib.Path,
+        pydantic.Field(
+            validation_alias=pydantic.AliasChoices("o", "output_dir", "output"),
+            description="Output directory for saving the trained tokenizer",
+        ),
+    ] = constants.PS_TOKENIZER_DIR
+    max_chars: Annotated[
+        pydantic.PositiveInt | None,
+        pydantic.Field(description="Maximum characters to train on. If none, train on the entire train split."),
+    ] = constants.PS_TOKENIZER_MAX_CHARS
+    max_chars_per_doc: Annotated[
+        pydantic.PositiveInt | None,
+        pydantic.Field(description="Maximum characters per document. If none, train on the entire document."),
+    ] = constants.PS_TOKENIZER_MAX_CHARS_PER_DOC
 
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -407,6 +450,7 @@ class Eval(Log, Seed, Device, Precision):
     input_dir: Annotated[
         pathlib.Path,
         pydantic.Field(
+            validation_alias=pydantic.AliasChoices("i", "input_dir", "input"),
             description="Input dataset directory to evaluate on (split has to be named {split}.jsonl)",
         ),
     ] = constants.HELLASWAG_DIR
@@ -427,13 +471,16 @@ class EvalGPT2Pretrained(Eval):
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
-class Report(Log, DDP):
+class Report(Log):
     """Settings for the `report` CLI subcommand."""
 
     report_dir: Annotated[
         pathlib.Path,
         pydantic.Field(description="Directory to save generated report to"),
     ] = constants.PS_REPORT_DIR
+
+    # ddp
+    ddp: DDP = DDP()
 
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 

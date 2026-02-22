@@ -1,5 +1,4 @@
-from pealm import model as model_mod
-from pealm import settings, utils
+from pealm import model, settings, utils
 from pealm.sample import base
 from pealm.tokenizer import CharTokenizer
 
@@ -12,7 +11,7 @@ def sample_char_transformer(sample_settings: settings.Sample, model_settings: se
         fp32_matmul_precision=sample_settings.fp32_matmul_precision,
     )
     tokenizer = CharTokenizer.load(sample_settings.tokenizer_dir)
-    model = model_mod.CharTransformer(
+    _model = model.CharTransformer(
         num_blocks=model_settings.num_blocks,
         num_heads=model_settings.num_heads,
         context_size=model_settings.context_size,
@@ -22,7 +21,7 @@ def sample_char_transformer(sample_settings: settings.Sample, model_settings: se
     )
     base.sample(
         device=device,
-        model=model,
+        model=_model,
         tokenizer=tokenizer,
         sample_settings=sample_settings,
     )

@@ -391,7 +391,7 @@ class DistReport(Report):
 
     def __init__(self, report_settings: settings.Report) -> None:
         super().__init__(report_settings.report_dir)
-        self.is_master_process = report_settings.is_master_process
+        self.is_master_process = report_settings.ddp.is_master_process
 
     def log(self, section: str, data: list[str | dict]) -> None:
         if not self.is_master_process:

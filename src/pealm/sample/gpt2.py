@@ -1,6 +1,4 @@
-from pealm import model as model_mod
-from pealm import settings, utils
-from pealm import tokenizer as tokenizer_mod
+from pealm import model, settings, tokenizer, utils
 from pealm.sample import base
 
 
@@ -11,8 +9,8 @@ def sample_gpt2(sample_settings: settings.SampleGPT2, model_settings: settings.G
         torch_seed=sample_settings.torch_seed,
         fp32_matmul_precision=sample_settings.fp32_matmul_precision,
     )
-    tokenizer = tokenizer_mod.GPT2Tokenizer()
-    model = model_mod.GPT2(
+    _tokenizer = tokenizer.GPT2Tokenizer()
+    _model = model.GPT2(
         context_size=model_settings.context_size,
         # don't use tokenizer.vocab_size for GPT2 cuz we want 50304 for cuda niceness
         vocab_size=model_settings.vocab_size,
@@ -22,7 +20,7 @@ def sample_gpt2(sample_settings: settings.SampleGPT2, model_settings: settings.G
     )
     base.sample(
         device=device,
-        model=model,
-        tokenizer=tokenizer,
+        model=_model,
+        tokenizer=_tokenizer,
         sample_settings=sample_settings,
     )

@@ -4,8 +4,7 @@ import pathlib
 
 import torch
 
-from pealm import model as model_mod
-from pealm import train
+from pealm import model, train
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +37,7 @@ class Checkpoint:
     @classmethod
     def load_weights(cls, ckpt: pathlib.Path, map_location: torch.device) -> dict[str, torch.Tensor]:
         logger.debug("loading weights from %s", ckpt)
-        with torch.serialization.safe_globals([train.Checkpoint, model_mod.Type]):
+        with torch.serialization.safe_globals([train.Checkpoint, model.Type]):
             checkpoint = torch.load(ckpt, map_location=map_location, weights_only=True)
             if isinstance(checkpoint, train.Checkpoint):
                 model_state_dict = checkpoint.model_state_dict

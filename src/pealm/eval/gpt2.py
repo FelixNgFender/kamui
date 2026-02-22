@@ -1,6 +1,4 @@
-from pealm import model as model_mod
-from pealm import settings, utils
-from pealm import tokenizer as tokenizer_mod
+from pealm import model, settings, tokenizer, utils
 from pealm.eval import base
 
 
@@ -11,8 +9,8 @@ def eval_gpt2(eval_settings: settings.Eval, model_settings: settings.GPT2) -> No
         torch_seed=eval_settings.torch_seed,
         fp32_matmul_precision=eval_settings.fp32_matmul_precision,
     )
-    tokenizer = tokenizer_mod.GPT2Tokenizer()
-    model = model_mod.GPT2(
+    _tokenizer = tokenizer.GPT2Tokenizer()
+    _model = model.GPT2(
         context_size=model_settings.context_size,
         # don't use tokenizer.vocab_size for GPT2 cuz we want 50304 for cuda niceness
         vocab_size=model_settings.vocab_size,
@@ -22,7 +20,7 @@ def eval_gpt2(eval_settings: settings.Eval, model_settings: settings.GPT2) -> No
     )
     base.evaluate(
         device=device,
-        model=model,
-        tokenizer=tokenizer,
+        model=_model,
+        tokenizer=_tokenizer,
         eval_settings=eval_settings,
     )

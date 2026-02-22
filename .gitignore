@@ -12,9 +12,9 @@ wheels/
 
 # PyTorch datasets
 notebooks/pytorch/data/
-*.pth
 # tensorboard logs
-runs/
+notebooks/pytorch/runs/
+notebooks/**/*.pth
 # slurm logs
 logs/
 checkpoints/

@@ -10,9 +10,7 @@ import torch.distributed as dist
 import torch.utils.data as data_utils
 from torch import nn
 
-from pealm import constants, dataset, settings, train, utils
-from pealm import model as model_mod
-from pealm import tokenizer as tokenizer_mod
+from pealm import constants, dataset, model, settings, tokenizer, train, utils
 
 logger = logging.getLogger(__name__)
 
@@ -196,9 +194,9 @@ def train_gpt2(train_settings: settings.TrainGPT2, model_settings: settings.GPT2
     )
 
     # prepare dataset and model
-    tokenizer = tokenizer_mod.GPT2Tokenizer()
+    _tokenizer = tokenizer.GPT2Tokenizer()
     train_dataset = dataset.ShardedNpy(
-        train_settings.input,
+        train_settings.input_dir,
         split="train",
         context_size=context_size,
         batch_size=rank_batch_size,
@@ -208,7 +206,7 @@ def train_gpt2(train_settings: settings.TrainGPT2, model_settings: settings.GPT2
         shuffle=True,
     )
     val_dataset = dataset.ShardedNpy(
-        train_settings.input,
+        train_settings.input_dir,
         split="val",
         context_size=context_size,
         batch_size=rank_batch_size,
@@ -218,7 +216,7 @@ def train_gpt2(train_settings: settings.TrainGPT2, model_settings: settings.GPT2
     train_dataloader = data_utils.DataLoader(train_dataset, batch_size=None, pin_memory=True)
     val_dataloader = data_utils.DataLoader(val_dataset, batch_size=None, pin_memory=True)
 
-    model = model_mod.GPT2(
+    _model = model.GPT2(
         context_size=context_size,
         # don't use tokenizer.vocab_size for GPT2 cuz we want 50304 for cuda niceness
         vocab_size=model_settings.vocab_size,
@@ -227,32 +225,32 @@ def train_gpt2(train_settings: settings.TrainGPT2, model_settings: settings.GPT2
         num_heads=model_settings.num_heads,
     )
     # follow gpt-3 hparams
-    optimizer = model.create_optimizer(train_settings.weight_decay, train_settings.lr, device)
+    optimizer = _model.create_optimizer(train_settings.weight_decay, train_settings.lr, device)
 
     # move and then compile so compiler don't have to reason about device-specific copies
-    model.to(device)
+    _model.to(device)
     # https://docs.pytorch.org/docs/main/notes/ddp#example
     # DDP works with TorchDynamo. When used with TorchDynamo, apply the DDP model wrapper before compiling the model,
     # such that torchdynamo can apply DDPOptimizer (graph-break optimizations) based on DDP bucket sizes
     if not train_settings.ddp.enabled:
         ddp_model = None
-        model.compile()
+        _model.compile()
     else:
         # ddp_local_rank is the gpu id that the model lives on
         ddp_model = torch.nn.parallel.DistributedDataParallel(
             # gradient_as_bucket_view=True to reduce GPU memory fragmentation
             # and slightly improve performance
-            model,
+            _model,
             device_ids=[train_settings.ddp.local_rank],
             gradient_as_bucket_view=True,
         )
         ddp_model.compile()
 
     # create training context
-    run_checkpoint_dir = train_settings.checkpoint_dir / model.TYPE / utils.current_dt()
+    run_checkpoint_dir = train_settings.checkpoint_dir / _model.TYPE / utils.current_dt()
     if train_settings.ddp.is_master_process:
         run_checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        tokenizer.save(run_checkpoint_dir / constants.TOKENIZER_DIR)
+        _tokenizer.save(run_checkpoint_dir / constants.TOKENIZER_DIR)
 
     ctx = GPT2Context(
         device=device,
@@ -262,8 +260,8 @@ def train_gpt2(train_settings: settings.TrainGPT2, model_settings: settings.GPT2
         rank=rank,
         world_size=world_size,
         is_master_process=train_settings.ddp.is_master_process,
-        model=model,
-        tokenizer=tokenizer,
+        model=_model,
+        tokenizer=_tokenizer,
         optimizer=optimizer,
         global_batch_size=batch_size,
         train_loader=train_dataloader,

@@ -42,9 +42,9 @@ class PeashooterTokenizer:
             append_id = append if isinstance(append, int) else self._encode_special(append)
 
         ids = self.enc.encode_ordinary(text)
-        if prepend_id is not None:
+        if prepend is not None:
             ids = [prepend_id, *ids]
-        if append_id is not None:
+        if append is not None:
             ids.append(append_id)
         return ids
 
@@ -79,8 +79,17 @@ class PeashooterTokenizer:
     def vocab_size(self) -> int:
         return self.enc.n_vocab
 
+    @property
+    def special_tokens_set(self) -> set[str]:
+        return self.enc.special_tokens_set
+
     @classmethod
     def train(cls, texts: Sequence[str]) -> "PeashooterTokenizer":
+        msg = (
+            f"this code path is using the default vocab_size={constants.PS_VOCAB_SIZE}. if you intend to use a "
+            "different vocab_size, call PeashooterTokenizer.train_from_iterator directly."
+        )
+        logger.warning(msg)
         return cls.train_from_iterator(iter(texts))
 
     @classmethod
@@ -114,7 +123,7 @@ class PeashooterTokenizer:
             pat_str=tokenizer.get_pattern(),
             mergeable_ranks=mergeable_ranks,
             special_tokens=special_tokens,
-            explicit_n_vocab=tokenizer.vocab_size(),
+            explicit_n_vocab=tokenizer.vocab_size + len(constants.PS_SPECIAL_TOKENS),
         )
         return PeashooterTokenizer(enc=enc, bos=constants.PS_BOS_TOKEN)
 

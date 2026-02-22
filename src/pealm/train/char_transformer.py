@@ -4,9 +4,7 @@ import torch
 import torch.utils.data as data_utils
 from torch import optim
 
-from pealm import constants, dataset, settings, train, utils
-from pealm import model as model_mod
-from pealm import tokenizer as tokenizer_mod
+from pealm import constants, dataset, model, settings, tokenizer, train, utils
 
 logger = logging.getLogger(__name__)
 
@@ -39,15 +37,15 @@ def train_char_transformer(
     # prepare dataset and model
     with train_settings.input.open("r", encoding="utf-8") as f:
         text = f.read()
-    tokenizer = tokenizer_mod.CharTokenizer.train([text])
+    _tokenizer = tokenizer.CharTokenizer.train([text])
     n1 = int(train_settings.train_split * len(text))
     train_dataset = dataset.Text(
-        tokenizer,
+        _tokenizer,
         text[:n1],
         context_size,
     )
     val_dataset = dataset.Text(
-        tokenizer,
+        _tokenizer,
         text[n1:],
         context_size,
     )
@@ -75,40 +73,40 @@ def train_char_transformer(
         pin_memory=True,
     )
 
-    model = model_mod.CharTransformer(
+    _model = model.CharTransformer(
         context_size=context_size,
-        vocab_size=tokenizer.vocab_size,
+        vocab_size=_tokenizer.vocab_size,
         embedding_size=model_settings.embedding_size,
         num_blocks=model_settings.num_blocks,
         num_heads=model_settings.num_heads,
         dropout=model_settings.dropout,
     )
-    optimizer = optim.AdamW(model.parameters(), lr=train_settings.lr)
+    optimizer = optim.AdamW(_model.parameters(), lr=train_settings.lr)
 
     # move and then compile so compiler don't have to reason about device-specific copies
-    model.to(device)
+    _model.to(device)
     # https://docs.pytorch.org/docs/main/notes/ddp#example
     # DDP works with TorchDynamo. When used with TorchDynamo, apply the DDP model wrapper before compiling the model,
     # such that torchdynamo can apply DDPOptimizer (graph-break optimizations) based on DDP bucket sizes
     if not train_settings.ddp.enabled:
         ddp_model = None
-        model.compile()
+        _model.compile()
     else:
         # ddp_local_rank is the gpu id that the model lives on
         ddp_model = torch.nn.parallel.DistributedDataParallel(
             # gradient_as_bucket_view=True to reduce GPU memory fragmentation
             # and slightly improve performance
-            model,
+            _model,
             device_ids=[train_settings.ddp.local_rank],
             gradient_as_bucket_view=True,
         )
         ddp_model.compile()
 
     # create training context
-    run_checkpoint_dir = train_settings.checkpoint_dir / model.TYPE / utils.current_dt()
+    run_checkpoint_dir = train_settings.checkpoint_dir / _model.TYPE / utils.current_dt()
     if train_settings.ddp.is_master_process:
         run_checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        tokenizer.save(run_checkpoint_dir / constants.TOKENIZER_DIR)
+        _tokenizer.save(run_checkpoint_dir / constants.TOKENIZER_DIR)
 
     ctx = train.Context(
         device=device,
@@ -118,8 +116,8 @@ def train_char_transformer(
         rank=rank,
         world_size=world_size,
         is_master_process=train_settings.ddp.is_master_process,
-        model=model,
-        tokenizer=tokenizer,
+        model=_model,
+        tokenizer=_tokenizer,
         optimizer=optimizer,
         global_batch_size=batch_size,
         train_loader=train_dataloader,
