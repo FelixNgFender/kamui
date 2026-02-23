@@ -1,5 +1,3 @@
-import functools
-import os
 import pathlib
 from typing import Annotated, ClassVar, Literal
 
@@ -7,173 +5,10 @@ import pydantic
 import pydantic_settings as ps
 
 from pealm import constants
+from pealm.settings import primitive
 
 
-class Log(ps.BaseSettings):
-    verbose: Annotated[
-        ps.CliImplicitFlag[bool],
-        pydantic.Field(
-            validation_alias=pydantic.AliasChoices("v", "verbose"), description="Logs extra debugging information"
-        ),
-    ] = False
-
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
-
-
-class Seed(ps.BaseSettings):
-    seed: Annotated[
-        int,
-        pydantic.Field(description="Random seed for Python"),
-    ] = constants.SEED
-    torch_seed: Annotated[
-        int,
-        pydantic.Field(description="Random seed for PyTorch"),
-    ] = constants.TORCH_SEED
-
-
-class Device(ps.BaseSettings):
-    use_accelerator: Annotated[
-        ps.CliImplicitFlag[bool],
-        pydantic.Field(description="Whether to use accelerator for training"),
-    ] = constants.USE_ACCELERATOR
-
-
-class Precision(ps.BaseSettings):
-    fp32_matmul_precision: Annotated[
-        Literal["highest", "high", "medium"],
-        pydantic.Field(description="FP32 matrix multiplication precision for PyTorch"),
-    ] = constants.FP32_MATMUL_PRECISION
-    use_mixed_precision: Annotated[
-        ps.CliImplicitFlag[bool],
-        pydantic.Field(
-            description=(
-                "Whether to use mixed precision for training and inference. If enabled, use bfloat16 where applicable."
-            )
-        ),
-    ] = constants.USE_MIXED_PRECISION
-
-
-class DDP(ps.BaseSettings):
-    """DDP settings auto-populated from environment variables set by torchrun."""
-
-    @pydantic.computed_field
-    @functools.cached_property[bool]
-    def enabled(self) -> bool:
-        """DDP is enabled when running with torchrun."""
-        return all(var in os.environ for var in ("RANK", "LOCAL_RANK", "WORLD_SIZE"))
-
-    rank: Annotated[
-        pydantic.NonNegativeInt, pydantic.Field(description="Global process rank. 0 for master process.")
-    ] = constants.DDP_RANK
-    local_rank: Annotated[
-        pydantic.NonNegativeInt,
-        pydantic.Field(description="Local process rank used for device assignment."),
-    ] = constants.DDP_LOCAL_RANK
-    world_size: Annotated[
-        pydantic.PositiveInt,
-        pydantic.Field(description="Total number of processes in the process group."),
-    ] = constants.DDP_WORLD_SIZE
-
-    @pydantic.computed_field
-    @functools.cached_property[bool]
-    def is_master_process(self) -> bool:
-        return self.rank == 0
-
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
-
-
-class ModelBase(ps.BaseSettings):
-    """Settings common to all model type creation."""
-
-    context_size: Annotated[
-        pydantic.PositiveInt,
-        pydantic.Field(description="Context size for the model"),
-    ] = constants.CONTEXT_SIZE
-
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
-
-
-class CharBigram(ModelBase):
-    """Settings for creating a character-level bigram model."""
-
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
-
-
-class CharTransformer(ModelBase):
-    """Settings for creating a character-level transformer model."""
-
-    embedding_size: Annotated[
-        pydantic.PositiveInt,
-        pydantic.Field(description="Embedding size for the model"),
-    ] = constants.TRANSFORMER_EMBEDDING_SIZE
-    num_blocks: Annotated[
-        pydantic.PositiveInt,
-        pydantic.Field(description="Number of transformer blocks"),
-    ] = constants.TRANSFORMER_NUM_BLOCKS
-    num_heads: Annotated[
-        pydantic.PositiveInt,
-        pydantic.Field(description="Number of transformer heads per layer"),
-    ] = constants.TRANSFORMER_NUM_HEADS
-    dropout: Annotated[
-        pydantic.NonNegativeFloat,
-        pydantic.Field(le=constants.MAX_DROPOUT, description="Transformer dropout rate"),
-    ] = constants.TRANSFORMER_DROPOUT
-
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
-
-
-GPT2PretrainedVariant = Literal["gpt2", "gpt2-medium", "gpt2-large", "gpt2-xl"]
-
-
-class GPT2Pretrained:
-    """Settings for using a pretrained GPT-2 model from Hugging Face. No model creation settings since we just download
-    the pretrained model."""
-
-    variant: Annotated[GPT2PretrainedVariant, pydantic.Field(description="GPT2 model variant to use")] = "gpt2"
-
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
-
-
-class GPT2(ModelBase):
-    """Settings for creating the GPT-2 (124M) model from OpenAI."""
-
-    # override ModelBase
-    context_size: Annotated[
-        pydantic.PositiveInt,
-        pydantic.Field(description="Context size for the model"),
-    ] = constants.GPT2_CONTEXT_SIZE
-    vocab_size: Annotated[
-        pydantic.PositiveInt,
-        pydantic.Field(description="Vocabulary size for the model"),
-    ] = constants.GPT2_VOCAB_SIZE
-    embedding_size: Annotated[
-        pydantic.PositiveInt,
-        pydantic.Field(description="Embedding size for the model"),
-    ] = constants.GPT2_EMBEDDING_SIZE
-    num_layers: Annotated[
-        pydantic.PositiveInt,
-        pydantic.Field(description="Number of transformer layers"),
-    ] = constants.GPT2_NUM_LAYERS
-    num_heads: Annotated[
-        pydantic.PositiveInt,
-        pydantic.Field(description="Number of transformer heads per layer"),
-    ] = constants.GPT2_NUM_HEADS
-
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
-
-
-class PeashooterTokenizer(ps.BaseSettings):
-    """Settings for creating the Peashooter tokenizer."""
-
-    vocab_size: Annotated[
-        pydantic.PositiveInt,
-        pydantic.Field(description="Vocabulary size"),
-    ] = constants.PS_VOCAB_SIZE
-
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
-
-
-class Train(Log, Seed, Device, Precision):
+class Train(primitive.Log, primitive.Seed, primitive.Device, primitive.Precision):
     """Settings for the `train` CLI subcommand."""
 
     # train settings
@@ -217,9 +52,7 @@ class Train(Log, Seed, Device, Precision):
     ] = constants.TOKENS_TO_SAVE
 
     # ddp
-    ddp: DDP = DDP()
-
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+    ddp: primitive.DDP = primitive.DDP()
 
 
 class TrainCharBigram(Train):
@@ -233,8 +66,6 @@ class TrainCharBigram(Train):
         ),
     ] = constants.TINYSHAKESPEARE_PATH
 
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
-
 
 class TrainCharTransformer(Train):
     """CharTransformer specific training settings."""
@@ -246,8 +77,6 @@ class TrainCharTransformer(Train):
             description="Input text file for training",
         ),
     ] = constants.TINYSHAKESPEARE_PATH
-
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 class TrainGPT2(Train):
@@ -309,10 +138,8 @@ class TrainGPT2(Train):
         pydantic.Field(description="Weight decay for AdamW optimizer"),
     ] = constants.GPT2_WEIGHT_DECAY
 
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
-
-class TrainPeashooterTokenizer(Log, Seed):
+class TrainPeashooterTokenizer(primitive.Log, primitive.Seed):
     """Peashooter tokenizer-specific training settings."""
 
     input_dir: Annotated[
@@ -338,13 +165,11 @@ class TrainPeashooterTokenizer(Log, Seed):
         pydantic.Field(description="Maximum characters per document. If none, train on the entire document."),
     ] = constants.PS_TOKENIZER_MAX_CHARS_PER_DOC
 
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
-
 
 HellaSwagSplit = Literal["train", "val", "test"]
 
 
-class Eval(Log, Seed, Device, Precision):
+class Eval(primitive.Log, primitive.Seed, primitive.Device, primitive.Precision):
     """Settings for the `evaluate` CLI subcommand."""
 
     ckpt: Annotated[
@@ -365,8 +190,6 @@ class Eval(Log, Seed, Device, Precision):
         pydantic.Field(description="Dataset split to evaluate on"),
     ] = "val"
 
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
-
 
 class EvalGPT2Pretrained(Eval):
     """GPT2 pretrained-specific eval settings"""
@@ -374,10 +197,8 @@ class EvalGPT2Pretrained(Eval):
     # override from Evaluate: downloads from HF
     ckpt: ClassVar[None] = None
 
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
-
-class EvalPeashooterTokenizer(Log, Seed):
+class EvalPeashooterTokenizer(primitive.Log, primitive.Seed):
     """Peashooter tokenizer-specific eval settings."""
 
     input_dir: Annotated[
@@ -394,10 +215,8 @@ class EvalPeashooterTokenizer(Log, Seed):
         ),
     ] = constants.PS_TOKENIZER_DIR
 
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
-
-class Chat(Log, Device, Precision):
+class Chat(primitive.Log, primitive.Device, primitive.Precision):
     """Settings for the `chat` CLI subcommand."""
 
     # we don't want fixed seed for sampling but still have option
@@ -444,8 +263,6 @@ class Chat(Log, Device, Precision):
         ),
     ] = constants.CHAT_TOP_K
 
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
-
 
 class ChatCli(Chat):
     """CLI-specific chat settings"""
@@ -457,8 +274,6 @@ class ChatCli(Chat):
             description="Prompt the model to get a single response back",
         ),
     ] = None
-
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 class ChatWeb(Chat):
@@ -485,10 +300,8 @@ class ChatWeb(Chat):
         constants.CHAT_WEB_HOST
     )
 
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
-
-class Sample(Log, Device, Precision):
+class Sample(primitive.Log, primitive.Device, primitive.Precision):
     """Settings for the `sample` CLI subcommand."""
 
     # we don't want fixed seed for sampling but still have option
@@ -545,8 +358,6 @@ class Sample(Log, Device, Precision):
         pydantic.Field(description="Stream output tokens to console as they are generated"),
     ] = True
 
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
-
 
 class SampleGPT2Pretrained(Sample):
     """GPT2 pretrained-specific sample settings"""
@@ -556,8 +367,6 @@ class SampleGPT2Pretrained(Sample):
     # override from Sample: GPT2 uses a built-in tokenizer
     tokenizer_dir: ClassVar[None] = None
 
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
-
 
 class SampleGPT2(Sample):
     """GPT2-specific sample settings"""
@@ -565,10 +374,8 @@ class SampleGPT2(Sample):
     # override from Sample: GPT2 uses a built-in tokenizer
     tokenizer_dir: ClassVar[None] = None
 
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
-
-class Report(Log):
+class Report(primitive.Log):
     """Settings for the `report` CLI subcommand."""
 
     report_dir: Annotated[
@@ -577,12 +384,10 @@ class Report(Log):
     ] = constants.PS_REPORT_DIR
 
     # ddp
-    ddp: DDP = DDP()
-
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+    ddp: primitive.DDP = primitive.DDP()
 
 
-class Convert(Log):
+class Convert(primitive.Log):
     """Settings for the `convert` CLI subcommand."""
 
     ckpt: Annotated[
@@ -594,10 +399,8 @@ class Convert(Log):
         pydantic.Field(validation_alias=pydantic.AliasChoices("o", "output"), description="Output model weights path"),
     ]
 
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
-
-class Clean(Log):
+class Clean(primitive.Log):
     """Settings for the `clean` CLI subcommand."""
 
     ckpt_dir: Annotated[
@@ -611,5 +414,3 @@ class Clean(Log):
             description="Force clean without user confirmation (DANGEROUS)",
         ),
     ] = False
-
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
