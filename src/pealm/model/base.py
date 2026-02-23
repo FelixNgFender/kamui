@@ -14,6 +14,7 @@ class Type(enum.StrEnum):
     CHAR_BIGRAM = enum.auto()
     CHAR_TRANSFORMER = enum.auto()
     GPT2 = enum.auto()
+    PEASHOOTER = enum.auto()
 
 
 class LanguageModel(nn.Module, abc.ABC):
@@ -29,25 +30,29 @@ class LanguageModel(nn.Module, abc.ABC):
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """idx and targets both have shape (B, T)"""
 
-    def _sample_next(self, idx: torch.Tensor, temperature: float, top_k: int | None) -> torch.Tensor:
+    def sample_next_token(self, idx: torch.Tensor, temperature: float, top_k: int | None) -> torch.Tensor:
         # crop idx  to the last context_size tokens
         idx_cropped = idx[:, -self.context_size :]
         logits, _ = self(idx_cropped)  # (B, T, vocab_size)
         # focus on the last timestep
         logits = logits[:, -1, :]  # (B, vocab_size)
-        # apply temperature
+
+        if temperature == 0.0:
+            return torch.argmax(logits, dim=-1, keepdim=True)  # (B, 1)
+        if top_k is not None and top_k > 0:
+            k = min(top_k, logits.size(-1))
+            # samples into the (B, K) distributions, NOT (B, vocab_size)!
+            # meaning ix is sampled indices into topk_indices
+            topk_logits, topk_indices = torch.topk(logits, k=k, dim=-1)  # (B, K)
+            topk_logits = topk_logits / temperature
+            probs = F.softmax(topk_logits, dim=-1)  # (B, K)
+            ix = torch.multinomial(probs, num_samples=1)  # (B, 1)
+            return topk_indices.gather(dim=-1, index=ix)  # (B, 1)
+        # non-top k sampling: apply temperature
         logits = logits / temperature
         probs = F.softmax(logits, dim=-1)
-        if top_k is None:
-            # sample from the full distribution
-            return torch.multinomial(probs, num_samples=1)  # (B, 1)
-
-        # samples into the (B, K) distributions, NOT (B, vocab_size)!
-        # meaning ix is sampled indices into topk_indices
-        topk_probs, topk_indices = torch.topk(probs, k=top_k, dim=-1)  # (B, K)
-        ix = torch.multinomial(topk_probs, num_samples=1)  # (B, 1)
-        # essentially topk_indices[b, ix]
-        return torch.gather(topk_indices, dim=-1, index=ix)  # (B, 1)
+        # sample from the full distribution
+        return torch.multinomial(probs, num_samples=1)  # (B, 1)
 
     def generate_stream(
         self,
@@ -59,7 +64,7 @@ class LanguageModel(nn.Module, abc.ABC):
     ) -> Iterator[torch.Tensor]:
         """Yield next token tensor (B, 1) at each step."""
         for _ in range(max_new_tokens):
-            idx_next = self._sample_next(idx, temperature, top_k)  # (B, 1)
+            idx_next = self.sample_next_token(idx, temperature, top_k)  # (B, 1)
             idx = torch.cat((idx, idx_next), dim=-1)
 
             yield idx_next

@@ -1,3 +1,4 @@
+import enum
 import pathlib
 
 # general
@@ -12,7 +13,7 @@ DATA_DIR = pathlib.Path("data")
 TINYSHAKESPEARE_PATH = DATA_DIR / "tinyshakespeare.txt"
 HELLASWAG_DIR = DATA_DIR / "hellaswag"
 FINEWEB_EDU10B_DIR = DATA_DIR / "fineweb_edu10B"
-TORCH_SEED = 2147483647
+TORCH_SEED = 2_147_483_647
 SEED = 42
 # https://docs.pytorch.org/docs/stable/generated/torch.set_float32_matmul_precision.html
 FP32_MATMUL_PRECISION = "high"  # "highest", "high", "medium"
@@ -34,9 +35,10 @@ TRANSFORMER_NUM_HEADS = 6
 TRANSFORMER_NUM_BLOCKS = 6
 TRANSFORMER_FFW_PROJECTION_FACTOR = 4
 TRANSFORMER_DROPOUT = 0.2
+MAX_DROPOUT = 1.0
 GPT2_CONTEXT_SIZE = 1024
 # 50,000 BPE merges + 256 bytes tokens + 1 <|endoftext|>, round up to nearest multiple of 64 for cuda niceness
-GPT2_VOCAB_SIZE = 50304
+GPT2_VOCAB_SIZE = 50_304
 GPT2_EMBEDDING_SIZE = 768
 GPT2_NUM_LAYERS = 12
 GPT2_NUM_HEADS = 12
@@ -46,32 +48,42 @@ GPT2_BATCH_SIZE_TOKENS = 2**19
 GPT2_BATCH_SIZE = GPT2_BATCH_SIZE_TOKENS // GPT2_CONTEXT_SIZE
 GPT2_MICRO_BATCH_SIZE = 16
 
-GPT2_NUM_STEPS = 19073  # per fineweb edu epoch
+GPT2_NUM_STEPS = 19_073  # per fineweb edu epoch
 GPT2_MAX_LR = 6e-4
 GPT2_MIN_LR = GPT2_MAX_LR * 0.1
 GPT2_WARMUP_LR_STEPS = 715  # before decaying lr
-GPT2_MAX_LR_STEPS = 19073  # before returning min_lr
+GPT2_MAX_LR_STEPS = 19_073  # before returning min_lr
 GPT2_WEIGHT_DECAY = 0.1
 
 # sample during training
-TOKENS_TO_SAVE = 10000
+TOKENS_TO_SAVE = 10_000
 
 # checkpointing
 SAVE_EVERY = 1000  # save checkpoint every 1000 training steps
-CHECKPOINT_DIR = pathlib.Path("checkpoints")
+CKPT_DIR = pathlib.Path("checkpoints")
 TOKENIZER_DIR = pathlib.Path("tokenizer")
 TOKENIZER_FILENAME = "tokenizer.json"
 VOCAB_FILENAME = "vocab.json"
 LATEST_CKPT_FILENAME = "latest.pt"
 FINAL_CKPT_FILENAME = "final.pt"
 BEST_CKPT_FILENAME = "best.pt"
+STEP_CKPT_TEMPLATE = "step_{step}.pt"
 LOSS_PLOT_FILENAME = "loss.png"
 SAMPLE_OUTPUT_FILENAME = "sample.txt"
 
+MAX_TEMPERATURE = 2.0
+
 # sample
-SAMPLE_MAX_TOKENS = 500
+SAMPLE_MAX_TOKENS = 512
 SAMPLE_TEMPERATURE = 1.0
 SAMPLE_TOP_K = 50
+
+# chat
+CHAT_TEMPERATURE = 0.7
+CHAT_TOP_K = 50
+CHAT_MAX_TOKENS = 512
+CHAT_WEB_HOST = "localhost"
+CHAT_WEB_PORT = 8000
 
 # gpt2 pretrained
 GPT2_PRETRAINED_CONFIG: dict[str, dict[str, int]] = {
@@ -80,7 +92,7 @@ GPT2_PRETRAINED_CONFIG: dict[str, dict[str, int]] = {
     "gpt2-large": {"num_layers": 36, "num_heads": 20, "embedding_size": 1280},  # 774M params
     "gpt2-xl": {"num_layers": 48, "num_heads": 25, "embedding_size": 1600},  # 1558M params
 }
-GPT2_PRETRAINED_VOCAB_SIZE = 50257
+GPT2_PRETRAINED_VOCAB_SIZE = 50_257
 GPT2_PRETRAINED_CONTEXT_SIZE = 1024
 
 # peashooter
@@ -90,24 +102,30 @@ PS_VOCAB_SIZE = 32_768  # 2**15, including special tokens
 
 ## tokenizer
 PS_TOKENIZER_DIR = PS_BASE_DIR / "tokenizer"
-PS_TOKENIZER_BYTES_PER_TOKEN_FILENAME = "token_bytes.pt"  # noqa: S105
+# ruff: disable[S105]
+PS_TOKENIZER_BYTES_PER_TOKEN_FILENAME = "token_bytes.pt"
 PS_TOKENIZER_FILENAME = "tokenizer.pkl"
-PS_BOS_TOKEN = "<|bos|>"  # noqa: S105
-PS_SPECIAL_TOKENS: list[str] = [
+
+
+class PeashooterSpecialTokens(enum.StrEnum):
+    """Unique strings that do not appear in normal text but tell the model about the structure of the conversation.
+    Useful when doing SFT/RL"""
+
     # every document begins with the Beginning of Sequence (BOS) token that delimits documents
-    PS_BOS_TOKEN,
+    BOS = "<|bos|>"
     # tokens below are only used during finetuning to render Conversations into token ids
-    "<|user_start|>",  # user messages
-    "<|user_end|>",
-    "<|assistant_start|>",  # assistant messages
-    "<|assistant_end|>",
-    "<|python_start|>",  # assistant invokes python REPL tool
-    "<|python_end|>",
-    "<|output_start|>",  # python REPL outputs back to assistant
-    "<|output_end|>",
-]
-"""Unique strings that do not appear in normal text but tell the model about the structure of the conversation. Useful
-when doing SFT/RL"""
+    USER_START = "<|user_start|>"  # user messages
+    USER_END = "<|user_end|>"
+    ASSISTANT_START = "<|assistant_start|>"  # assistant messages
+    ASSISTANT_END = "<|assistant_end|>"
+    PYTHON_START = "<|python_start|>"  # assistant invokes python REPL tool
+    PYTHON_END = "<|python_end|>"
+    OUTPUT_START = "<|output_start|>"  # python repl outputs back to assistant
+    OUTPUT_END = "<|output_end|>"
+
+
+PS_SPECIAL_TOKENS: list[str] = [str(tok.value) for tok in PeashooterSpecialTokens]
+# ruff: enable[S105]
 # 1. contractions: '(?i:[sdmt]|ll|ve|re) matches common english contractions like "don't", "I'm", "they're", etc. the
 # (?i:...) makes it case-insensitive.
 #
@@ -158,3 +176,12 @@ PS_REPORTS: list[str] = [
 # ChatCORE: custom chat eval metric in nanochat that aggregates perf across main chat eval tasks
 PS_CHAT_METRICS: list[str] = ["ARC-Easy", "ARC-Challenge", "MMLU", "GSM8K", "HumanEval", "ChatCORE"]
 """the metrics measured when training peashooter"""
+
+# chat
+MAX_PORT = 65_535
+PS_CHAT_WEB_MAX_MESSAGES = 500
+PS_CHAT_WEB_MAX_MESSAGE_LEN = 8_000
+PS_CHAT_WEB_MAX_CONVERSATION_LEN = 32_000
+PS_CHAT_WEB_MAX_TOP_K = 200
+PS_CHAT_WEB_MIN_TOKENS = 1
+PS_CHAT_WEB_MAX_TOKENS = 4096

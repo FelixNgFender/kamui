@@ -24,11 +24,7 @@ class PeashooterTokenizer:
 
     def __init__(self, enc: tiktoken.Encoding, bos: str) -> None:
         self.enc = enc
-        self.bos_token_id = self._encode_special(bos)
-
-    def _encode_special(self, text_or_bytes: str | bytes) -> int:
-        """Encode a single special token via exact match"""
-        return _cached_encode_special(self.enc, text_or_bytes)
+        self.bos_token_id = self.encode_special(bos)
 
     def _encode(
         self,
@@ -37,9 +33,9 @@ class PeashooterTokenizer:
         append: int | str | None = None,
     ) -> list[int]:
         if prepend is not None:
-            prepend_id = prepend if isinstance(prepend, int) else self._encode_special(prepend)
+            prepend_id = prepend if isinstance(prepend, int) else self.encode_special(prepend)
         if append is not None:
-            append_id = append if isinstance(append, int) else self._encode_special(append)
+            append_id = append if isinstance(append, int) else self.encode_special(append)
 
         ids = self.enc.encode_ordinary(text)
         if prepend is not None:
@@ -56,9 +52,9 @@ class PeashooterTokenizer:
         num_threads: int = 8,
     ) -> list[list[int]]:
         if prepend is not None:
-            prepend_id = prepend if isinstance(prepend, int) else self._encode_special(prepend)
+            prepend_id = prepend if isinstance(prepend, int) else self.encode_special(prepend)
         if append is not None:
-            append_id = append if isinstance(append, int) else self._encode_special(append)
+            append_id = append if isinstance(append, int) else self.encode_special(append)
 
         ids = self.enc.encode_ordinary_batch(text, num_threads=num_threads)
         if prepend_id is not None:
@@ -71,6 +67,10 @@ class PeashooterTokenizer:
 
     def encode(self, s: str) -> list[int]:
         return self._encode(s)
+
+    def encode_special(self, text_or_bytes: str | bytes) -> int:
+        """Encode a single special token via exact match"""
+        return _cached_encode_special(self.enc, text_or_bytes)
 
     def decode(self, ids: Sequence[int]) -> str:
         return self.enc.decode(ids)
@@ -125,7 +125,7 @@ class PeashooterTokenizer:
             special_tokens=special_tokens,
             explicit_n_vocab=tokenizer.vocab_size + len(constants.PS_SPECIAL_TOKENS),
         )
-        return PeashooterTokenizer(enc=enc, bos=constants.PS_BOS_TOKEN)
+        return PeashooterTokenizer(enc=enc, bos=constants.PeashooterSpecialTokens.BOS)
 
     @classmethod
     def from_pretrained(cls, name: str) -> "PeashooterTokenizer":
@@ -153,4 +153,4 @@ class PeashooterTokenizer:
         tokenizer_path = path / constants.PS_TOKENIZER_FILENAME
         with tokenizer_path.open("rb") as f:
             enc = pickle.load(f)  # noqa: S301
-        return cls(enc, constants.PS_BOS_TOKEN)
+        return cls(enc, constants.PeashooterSpecialTokens.BOS)

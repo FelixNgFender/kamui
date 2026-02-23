@@ -11,7 +11,7 @@ import torch.distributed as dist
 from torch import optim
 from torch.utils import data as data_utils
 
-from pealm import constants, tokenizer, train
+from pealm import checkpoint, constants, tokenizer
 from pealm import model as model_mod
 
 logger = logging.getLogger(__name__)
@@ -108,7 +108,7 @@ class Context:
         if not self.is_master_process:
             return
 
-        checkpoint = train.Checkpoint(
+        _checkpoint = checkpoint.Checkpoint(
             step=self.step,
             model_type=self.model.TYPE,
             model_state_dict=self.model.state_dict(),
@@ -117,7 +117,7 @@ class Context:
             val_loss=self.val_loss,
         )
         checkpoint_path = self.checkpoint_dir / filename
-        torch.save(checkpoint, checkpoint_path)
+        torch.save(_checkpoint, checkpoint_path)
         logger.info("checkpoint saved: %s", checkpoint_path)
 
     def _load(
@@ -125,17 +125,17 @@ class Context:
         ckpt: pathlib.Path,
     ) -> None:
         """Load part of the training context from the checkpoint."""
-        checkpoint = train.Checkpoint.load(ckpt, map_location=self.device)
-        if model_mod.Type(checkpoint.model_type) != self.model.TYPE:
-            msg = f"checkpoint model type {checkpoint.model_type} does not match current model type {self.model.TYPE}"
+        _checkpoint = checkpoint.Checkpoint.load(ckpt, map_location=self.device)
+        if model_mod.Type(_checkpoint.model_type) != self.model.TYPE:
+            msg = f"checkpoint model type {_checkpoint.model_type} does not match current model type {self.model.TYPE}"
             raise ValueError(msg)
 
-        self.model.load_state_dict(checkpoint.model_state_dict)
-        self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
-        self.train_loss = checkpoint.train_loss
-        self.val_loss = checkpoint.val_loss
-        self.step = checkpoint.step + 1  # start at the next step after the checkpoint
-        logger.info("checkpoint loaded from %s (step %d)", ckpt, checkpoint.step)
+        self.model.load_state_dict(_checkpoint.model_state_dict)
+        self.optimizer.load_state_dict(_checkpoint.optimizer_state_dict)
+        self.train_loss = _checkpoint.train_loss
+        self.val_loss = _checkpoint.val_loss
+        self.step = _checkpoint.step + 1  # start at the next step after the checkpoint
+        logger.info("checkpoint loaded from %s (step %d)", ckpt, _checkpoint.step)
 
         # ensure all ranks finish loading
         if self.is_ddp:
@@ -299,7 +299,7 @@ class Context:
             if self.save_every is not None and step % self.save_every == 0:
                 self._plot_losses()
                 self._checkpoint(
-                    f"step_{step}.pt",
+                    constants.STEP_CKPT_TEMPLATE.format(step=step),
                 )
                 self._checkpoint(constants.LATEST_CKPT_FILENAME)
 

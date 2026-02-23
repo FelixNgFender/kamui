@@ -14,6 +14,11 @@ from pealm.model import base
 logger = logging.getLogger(__name__)
 
 
+def rms_norm(x: torch.Tensor) -> torch.Tensor:
+    """pure rms norm with no learnable gain"""
+    return F.rms_norm(x, (x.shape[-1],))
+
+
 class CausalSelfAttention(nn.Module):
     def __init__(self, embedding_size: int, num_heads: int) -> None:
         super().__init__()
@@ -94,8 +99,8 @@ class Block(nn.Module):
         return x + self.mlp(self.ln_2(x))  # (B, T, C)
 
 
-class GPT2(base.LanguageModel):
-    TYPE = base.Type.GPT2
+class Peashooter(base.LanguageModel):
+    TYPE = base.Type.PEASHOOTER
 
     def __init__(
         self,
@@ -113,17 +118,11 @@ class GPT2(base.LanguageModel):
             {
                 # token embedding
                 "wte": nn.Embedding(vocab_size, embedding_dim=embedding_size),
-                # position embedding
-                "wpe": nn.Embedding(context_size, embedding_dim=embedding_size),
                 # hidden
                 "h": nn.ModuleList(Block(embedding_size, num_heads) for _ in range(num_layers)),
-                "ln_f": nn.LayerNorm(embedding_size),
             }
         )
         self.lm_head = nn.Linear(embedding_size, vocab_size, bias=False)
-
-        # weight sharing between token embedding and output projection
-        self.transformer.wte.weight = self.lm_head.weight  # ty:ignore[invalid-assignment]
 
         # init params
         self.apply(self._init_weights)
@@ -163,13 +162,13 @@ class GPT2(base.LanguageModel):
         return logits, loss
 
     @classmethod
-    def from_pretrained(cls, model_type: settings.GPT2PretrainedVariant) -> "GPT2":
+    def from_pretrained(cls, model_type: settings.GPT2PretrainedVariant) -> "Peashooter":
         logger.info("loading weights from pretrained model %s", model_type)
         config_args = constants.GPT2_PRETRAINED_CONFIG[model_type]
         # share vocab size, context size, and feedforward projection factor
         config_args["vocab_size"] = constants.GPT2_PRETRAINED_VOCAB_SIZE
         config_args["context_size"] = constants.GPT2_PRETRAINED_CONTEXT_SIZE
-        model = GPT2(
+        model = Peashooter(
             context_size=config_args["context_size"],
             vocab_size=config_args["vocab_size"],
             embedding_size=config_args["embedding_size"],

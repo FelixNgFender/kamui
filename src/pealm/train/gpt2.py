@@ -246,7 +246,7 @@ def train_gpt2(train_settings: settings.TrainGPT2, model_settings: settings.GPT2
         ddp_model.compile()
 
     # create training context
-    run_checkpoint_dir = train_settings.checkpoint_dir / _model.TYPE / utils.current_dt()
+    run_checkpoint_dir = train_settings.ckpt_dir / _model.TYPE / utils.current_dt()
     if train_settings.ddp.is_master_process:
         run_checkpoint_dir.mkdir(parents=True, exist_ok=True)
         _tokenizer.save(run_checkpoint_dir / constants.TOKENIZER_DIR)
@@ -272,7 +272,7 @@ def train_gpt2(train_settings: settings.TrainGPT2, model_settings: settings.GPT2
         val_loss=[],
         save_every=train_settings.save_every,
         checkpoint_dir=run_checkpoint_dir,
-        resume_from_checkpoint=train_settings.resume_from_checkpoint,
+        resume_from_checkpoint=train_settings.resume_from_ckpt,
         tokens_to_save=train_settings.tokens_to_save,
         val_every=train_settings.val_every,
         # custom

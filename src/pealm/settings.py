@@ -45,7 +45,11 @@ class Precision(ps.BaseSettings):
     ] = constants.FP32_MATMUL_PRECISION
     use_mixed_precision: Annotated[
         ps.CliImplicitFlag[bool],
-        pydantic.Field(description="Whether to use mixed precision for training and inference"),
+        pydantic.Field(
+            description=(
+                "Whether to use mixed precision for training and inference. If enabled, use bfloat16 where applicable."
+            )
+        ),
     ] = constants.USE_MIXED_PRECISION
 
 
@@ -58,13 +62,15 @@ class DDP(ps.BaseSettings):
         """DDP is enabled when running with torchrun."""
         return all(var in os.environ for var in ("RANK", "LOCAL_RANK", "WORLD_SIZE"))
 
-    rank: Annotated[int, pydantic.Field(description="Global process rank. 0 for master process.")] = constants.DDP_RANK
+    rank: Annotated[
+        pydantic.NonNegativeInt, pydantic.Field(description="Global process rank. 0 for master process.")
+    ] = constants.DDP_RANK
     local_rank: Annotated[
-        int,
+        pydantic.NonNegativeInt,
         pydantic.Field(description="Local process rank used for device assignment."),
     ] = constants.DDP_LOCAL_RANK
     world_size: Annotated[
-        int,
+        pydantic.PositiveInt,
         pydantic.Field(description="Total number of processes in the process group."),
     ] = constants.DDP_WORLD_SIZE
 
@@ -109,8 +115,8 @@ class CharTransformer(ModelBase):
         pydantic.Field(description="Number of transformer heads per layer"),
     ] = constants.TRANSFORMER_NUM_HEADS
     dropout: Annotated[
-        float,
-        pydantic.Field(ge=0.0, le=1.0, description="Transformer dropout rate"),
+        pydantic.NonNegativeFloat,
+        pydantic.Field(le=constants.MAX_DROPOUT, description="Transformer dropout rate"),
     ] = constants.TRANSFORMER_DROPOUT
 
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
@@ -172,8 +178,8 @@ class Train(Log, Seed, Device, Precision):
 
     # train settings
     train_split: Annotated[
-        float,
-        pydantic.Field(gt=0.0, lt=1.0, description="Proportion of data to use for training"),
+        pydantic.PositiveFloat,
+        pydantic.Field(lt=1.0, description="Proportion of data to use for training"),
     ] = constants.TRAIN_SPLIT
     batch_size: Annotated[
         pydantic.PositiveInt,
@@ -195,11 +201,11 @@ class Train(Log, Seed, Device, Precision):
         pydantic.PositiveInt | None,
         pydantic.Field(description="Evaluate on validation set every N steps"),
     ] = constants.VAL_EVERY
-    checkpoint_dir: Annotated[
+    ckpt_dir: Annotated[
         pathlib.Path,
         pydantic.Field(description="Directory to save model checkpoints"),
-    ] = constants.CHECKPOINT_DIR
-    resume_from_checkpoint: Annotated[
+    ] = constants.CKPT_DIR
+    resume_from_ckpt: Annotated[
         pathlib.Path | None,
         pydantic.Field(description="Checkpoint to resume training from"),
     ] = None
@@ -250,7 +256,7 @@ class TrainGPT2(Train):
     input_dir: Annotated[
         pathlib.Path,
         pydantic.Field(
-            validation_alias=pydantic.AliasChoices("i", "input_dir", "input"),
+            validation_alias=pydantic.AliasChoices("i", "input_dir"),
             description="Input numpy shards directory for training",
         ),
     ] = constants.FINEWEB_EDU10B_DIR
@@ -312,14 +318,14 @@ class TrainPeashooterTokenizer(Log, Seed):
     input_dir: Annotated[
         pathlib.Path,
         pydantic.Field(
-            validation_alias=pydantic.AliasChoices("i", "input_dir", "input"),
+            validation_alias=pydantic.AliasChoices("i", "input_dir"),
             description="Input parquet shards directory for training",
         ),
     ] = constants.PS_BASE_DATA_DIR
     output_dir: Annotated[
         pathlib.Path,
         pydantic.Field(
-            validation_alias=pydantic.AliasChoices("o", "output_dir", "output"),
+            validation_alias=pydantic.AliasChoices("o", "output_dir"),
             description="Output directory for saving the trained tokenizer",
         ),
     ] = constants.PS_TOKENIZER_DIR
@@ -335,19 +341,149 @@ class TrainPeashooterTokenizer(Log, Seed):
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
-class Convert(Log):
-    """Settings for the `convert` CLI subcommand."""
+HellaSwagSplit = Literal["train", "val", "test"]
 
-    checkpoint: Annotated[
+
+class Eval(Log, Seed, Device, Precision):
+    """Settings for the `evaluate` CLI subcommand."""
+
+    ckpt: Annotated[
         pathlib.Path,
         pydantic.Field(
-            validation_alias=pydantic.AliasChoices("ckpt", "checkpoint"), description="Model checkpoint to convert"
+            description="Full or weights-only checkpoint to evaluate on",
         ),
     ]
-    output: Annotated[
+    input_dir: Annotated[
         pathlib.Path,
-        pydantic.Field(validation_alias=pydantic.AliasChoices("o", "output"), description="Output model weights path"),
+        pydantic.Field(
+            validation_alias=pydantic.AliasChoices("i", "input_dir"),
+            description="Input dataset directory to evaluate on (split has to be named {split}.jsonl)",
+        ),
+    ] = constants.HELLASWAG_DIR
+    split: Annotated[
+        HellaSwagSplit,
+        pydantic.Field(description="Dataset split to evaluate on"),
+    ] = "val"
+
+    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+
+
+class EvalGPT2Pretrained(Eval):
+    """GPT2 pretrained-specific eval settings"""
+
+    # override from Evaluate: downloads from HF
+    ckpt: ClassVar[None] = None
+
+    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+
+
+class EvalPeashooterTokenizer(Log, Seed):
+    """Peashooter tokenizer-specific eval settings."""
+
+    input_dir: Annotated[
+        pathlib.Path,
+        pydantic.Field(
+            validation_alias=pydantic.AliasChoices("i", "input_dir"),
+            description="Input parquet shards directory for training",
+        ),
+    ] = constants.PS_BASE_DATA_DIR
+    tokenizer_dir: Annotated[
+        pathlib.Path,
+        pydantic.Field(
+            description="Directory containing tokenizer config to evaluate with",
+        ),
+    ] = constants.PS_TOKENIZER_DIR
+
+    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+
+
+class Chat(Log, Device, Precision):
+    """Settings for the `chat` CLI subcommand."""
+
+    # we don't want fixed seed for sampling but still have option
+    seed: Annotated[
+        int | None,
+        pydantic.Field(description="Random seed for Python"),
+    ] = None
+    torch_seed: Annotated[
+        int | None,
+        pydantic.Field(description="Random seed for PyTorch"),
+    ] = None
+
+    ckpt: Annotated[
+        pathlib.Path,
+        pydantic.Field(
+            description="Full or weights-only checkpoint",
+        ),
     ]
+    tokenizer_dir: Annotated[
+        pathlib.Path,
+        pydantic.Field(description="Directory containing tokenizer config"),
+    ] = constants.PS_TOKENIZER_DIR
+
+    max_tokens: Annotated[
+        pydantic.PositiveInt,
+        pydantic.Field(
+            validation_alias=pydantic.AliasChoices("n", "max_tokens"),
+            description="Maximum number of tokens to generate",
+        ),
+    ] = constants.CHAT_MAX_TOKENS
+    temperature: Annotated[
+        pydantic.NonNegativeFloat,
+        pydantic.Field(
+            le=constants.MAX_TEMPERATURE,
+            validation_alias=pydantic.AliasChoices("t", "temperature"),
+            description="Generation temperature i.e., how random the token sampling should be",
+        ),
+    ] = constants.CHAT_TEMPERATURE
+    top_k: Annotated[
+        pydantic.PositiveInt | None,
+        pydantic.Field(
+            validation_alias=pydantic.AliasChoices("k", "top_k"),
+            description="Number of top K tokens to consider for sampling. If none, no top-k filtering",
+        ),
+    ] = constants.CHAT_TOP_K
+
+    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+
+
+class ChatCli(Chat):
+    """CLI-specific chat settings"""
+
+    prompt: Annotated[
+        str | None,
+        pydantic.Field(
+            validation_alias=pydantic.AliasChoices("p", "prompt"),
+            description="Prompt the model to get a single response back",
+        ),
+    ] = None
+
+    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+
+
+class ChatWeb(Chat):
+    """Web-specific chat settings"""
+
+    num_gpus: Annotated[
+        pydantic.PositiveInt | None,
+        pydantic.Field(
+            description=(
+                "Number of GPUs to use for workers. If more than 1, each GPU will keep a model replica."
+                "If none, use all available GPUs"
+            )
+        ),
+    ] = None
+    port: Annotated[
+        pydantic.NonNegativeInt,
+        pydantic.Field(
+            validation_alias=pydantic.AliasChoices("p", "port"),
+            le=constants.MAX_PORT,
+            description="Port to run the server on",
+        ),
+    ] = constants.CHAT_WEB_PORT
+    host: Annotated[str | pydantic.IPvAnyAddress, pydantic.Field(description="Host to bind the server to")] = (
+        constants.CHAT_WEB_HOST
+    )
 
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -365,10 +501,9 @@ class Sample(Log, Device, Precision):
         pydantic.Field(description="Random seed for PyTorch"),
     ] = None
 
-    checkpoint: Annotated[
+    ckpt: Annotated[
         pathlib.Path,
         pydantic.Field(
-            validation_alias=pydantic.AliasChoices("ckpt", "checkpoint"),
             description="Full or weights-only checkpoint to sample from",
         ),
     ]
@@ -376,18 +511,17 @@ class Sample(Log, Device, Precision):
         pathlib.Path,
         pydantic.Field(description="Directory containing tokenizer config"),
     ]
-    n_tokens: Annotated[
+    max_tokens: Annotated[
         pydantic.PositiveInt,
         pydantic.Field(
-            validation_alias=pydantic.AliasChoices("n", "n_tokens"),
-            description="Number of tokens to generate",
+            validation_alias=pydantic.AliasChoices("n", "max_tokens"),
+            description="Maximum number of tokens to generate",
         ),
     ] = constants.SAMPLE_MAX_TOKENS
     temperature: Annotated[
-        float,
+        pydantic.NonNegativeFloat,
         pydantic.Field(
-            ge=0.0,
-            le=2.0,
+            le=constants.MAX_TEMPERATURE,
             validation_alias=pydantic.AliasChoices("t", "temperature"),
             description="Sampling temperature i.e., how random the sampling should be",
         ),
@@ -396,7 +530,7 @@ class Sample(Log, Device, Precision):
         pydantic.PositiveInt | None,
         pydantic.Field(
             validation_alias=pydantic.AliasChoices("k", "top_k"),
-            description="Number of top K tokens to consider for sampling. If none, no top-k filtering)",
+            description="Number of top K tokens to consider for sampling. If none, no top-k filtering",
         ),
     ] = constants.SAMPLE_TOP_K
     prompt: Annotated[
@@ -418,7 +552,7 @@ class SampleGPT2Pretrained(Sample):
     """GPT2 pretrained-specific sample settings"""
 
     # override from Sample: downloads from HF
-    checkpoint: ClassVar[None] = None
+    ckpt: ClassVar[None] = None
     # override from Sample: GPT2 uses a built-in tokenizer
     tokenizer_dir: ClassVar[None] = None
 
@@ -430,63 +564,6 @@ class SampleGPT2(Sample):
 
     # override from Sample: GPT2 uses a built-in tokenizer
     tokenizer_dir: ClassVar[None] = None
-
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
-
-
-HellaSwagSplit = Literal["train", "val", "test"]
-
-
-class Eval(Log, Seed, Device, Precision):
-    """Settings for the `evaluate` CLI subcommand."""
-
-    checkpoint: Annotated[
-        pathlib.Path,
-        pydantic.Field(
-            validation_alias=pydantic.AliasChoices("ckpt", "checkpoint"),
-            description="Full or weights-only checkpoint to evaluate on",
-        ),
-    ]
-    input_dir: Annotated[
-        pathlib.Path,
-        pydantic.Field(
-            validation_alias=pydantic.AliasChoices("i", "input_dir", "input"),
-            description="Input dataset directory to evaluate on (split has to be named {split}.jsonl)",
-        ),
-    ] = constants.HELLASWAG_DIR
-    split: Annotated[
-        HellaSwagSplit,
-        pydantic.Field(description="Dataset split to evaluate on"),
-    ] = "val"
-
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
-
-
-class EvalGPT2Pretrained(Eval):
-    """GPT2 pretrained-specific eval settings"""
-
-    # override from Evaluate: downloads from HF
-    checkpoint: ClassVar[None] = None
-
-    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
-
-
-class EvalPeashooterTokenizer(Log, Seed):
-    """Peashooter tokenizer-specific eval settings."""
-
-    input_dir: Annotated[
-        pathlib.Path,
-        pydantic.Field(
-            validation_alias=pydantic.AliasChoices("i", "input_dir", "input"),
-            description="Input parquet shards directory for training",
-        ),
-    ] = constants.PS_BASE_DATA_DIR
-    tokenizer_dir: Annotated[
-        pathlib.Path,
-        pydantic.Field(
-            description="Directory containing tokenizer config to evaluate with",
-        ),
-    ] = constants.PS_TOKENIZER_DIR
 
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -505,13 +582,28 @@ class Report(Log):
     model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
 
 
+class Convert(Log):
+    """Settings for the `convert` CLI subcommand."""
+
+    ckpt: Annotated[
+        pathlib.Path,
+        pydantic.Field(description="Model checkpoint to convert"),
+    ]
+    output: Annotated[
+        pathlib.Path,
+        pydantic.Field(validation_alias=pydantic.AliasChoices("o", "output"), description="Output model weights path"),
+    ]
+
+    model_config = ps.SettingsConfigDict(env_file=".env", extra="ignore")
+
+
 class Clean(Log):
     """Settings for the `clean` CLI subcommand."""
 
-    checkpoint_dir: Annotated[
+    ckpt_dir: Annotated[
         pathlib.Path,
         pydantic.Field(description="Model checkpoints directory to clean"),
-    ] = constants.CHECKPOINT_DIR
+    ] = constants.CKPT_DIR
     force: Annotated[
         ps.CliImplicitFlag[bool],
         pydantic.Field(

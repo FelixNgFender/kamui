@@ -3,8 +3,8 @@ import logging
 import torch
 import torch.nn.functional as F
 
+from pealm import checkpoint, settings
 from pealm import model as model_mod
-from pealm import settings, train
 from pealm import tokenizer as tokenizer_mod
 from pealm.eval import hellaswag
 
@@ -21,8 +21,8 @@ def evaluate(
     model.eval().to(device).compile()
 
     # load checkpoint
-    if eval_settings.checkpoint is not None:
-        model_state_dict = train.Checkpoint.load_weights(eval_settings.checkpoint, map_location=device)
+    if eval_settings.ckpt is not None:
+        model_state_dict = checkpoint.Checkpoint.load_weights(eval_settings.ckpt, map_location=device)
         model.load_state_dict(model_state_dict)
 
     num_correct_norm = 0

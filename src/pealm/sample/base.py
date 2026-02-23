@@ -3,8 +3,8 @@ import time
 
 import torch
 
+from pealm import checkpoint, settings
 from pealm import model as model_mod
-from pealm import settings, train
 from pealm import tokenizer as tokenizer_mod
 
 logger = logging.getLogger(__name__)
@@ -17,12 +17,15 @@ def sample(
     sample_settings: settings.Sample,
 ) -> None:
     """Common to all models"""
-    model.eval().to(device).compile()
+    model.to(device)
 
     # load checkpoint if told, some pretrained models don't need to
-    if sample_settings.checkpoint is not None:
-        model_state_dict = train.Checkpoint.load_weights(sample_settings.checkpoint, map_location=device)
+    if sample_settings.ckpt is not None:
+        model_state_dict = checkpoint.Checkpoint.load_weights(sample_settings.ckpt, map_location=device)
         model.load_state_dict(model_state_dict)
+
+    # only compile after graph is in place and on device
+    model.eval().compile()
 
     # prepare initial context
     if sample_settings.prompt:
@@ -35,7 +38,7 @@ def sample(
 
     logger.debug(
         "generating %d tokens with temperature %.2f (stream=%s)",
-        sample_settings.n_tokens,
+        sample_settings.max_tokens,
         sample_settings.temperature,
         sample_settings.stream,
     )
@@ -55,7 +58,7 @@ def sample(
         ):
             for idx_next in model.generate_stream(
                 context,
-                max_new_tokens=sample_settings.n_tokens,
+                max_new_tokens=sample_settings.max_tokens,
                 temperature=sample_settings.temperature,
             ):
                 tokens = idx_next[0].tolist()
@@ -71,7 +74,7 @@ def sample(
         ):
             out = model.generate(
                 context,
-                max_new_tokens=sample_settings.n_tokens,
+                max_new_tokens=sample_settings.max_tokens,
                 temperature=sample_settings.temperature,
                 top_k=sample_settings.top_k,
             )

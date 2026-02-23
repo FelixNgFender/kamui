@@ -3,7 +3,7 @@ import pathlib
 
 import torch
 
-from pealm import train
+from pealm import checkpoint
 
 logger = logging.getLogger(__name__)
 
@@ -22,11 +22,11 @@ def ckpt_to_weights(
         raise FileNotFoundError(msg)
 
     # load full checkpoint
-    checkpoint = train.Checkpoint.load(checkpoint_path, map_location=torch.device("cpu"))
+    _checkpoint = checkpoint.Checkpoint.load(checkpoint_path, map_location=torch.device("cpu"))
 
     # save weights only
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(checkpoint.model_state_dict, output_path)
+    torch.save(_checkpoint.model_state_dict, output_path)
 
     # report size reduction
     original_size = checkpoint_path.stat().st_size / (1024 * 1024)  # MB

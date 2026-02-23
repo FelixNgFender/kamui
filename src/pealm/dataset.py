@@ -71,7 +71,7 @@ class ShardedNpy(data_utils.IterableDataset):
         self.shard_paths = sorted(self.data_dir.glob(f"{self.split}_*.npy"))
         if not self.shard_paths:
             msg = f"no shards found for split {self.split} in {self.data_dir}"
-            raise ValueError(msg)
+            raise FileNotFoundError(msg)
         self.shuffle = shuffle
         self.rng = np.random.default_rng(seed)
 
@@ -123,7 +123,7 @@ class ShardedParquet(data_utils.IterableDataset):
         self.shard_paths = all_shard_paths[:-1] if split == "train" else all_shard_paths[-1:]
         if not self.shard_paths:
             msg = f"no shards found for split {self.split} in {self.data_dir}"
-            raise ValueError(msg)
+            raise FileNotFoundError(msg)
         self.shuffle = shuffle
         self.rng = np.random.default_rng(seed)
 
